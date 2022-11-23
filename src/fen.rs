@@ -1,0 +1,242 @@
+use std::str::FromStr;
+
+use crate::error::{BoardError, ErrorKind};
+use crate::{piece, piece::Piece, position::Position, Board};
+use regex::Regex;
+
+impl Board {
+    pub fn to_fen(self) -> String {
+        let mut output = String::new();
+        let pw_rep = self.to_board_representation();
+
+        for rank in 0..8 {
+            let mut empty_squares = 0;
+            for p in &pw_rep[(rank << 3)..((rank + 1) << 3)] {
+                if p == &Piece::Empty {
+                    empty_squares += 1;
+                    continue;
+                }
+                if empty_squares != 0 {
+                    output += empty_squares.to_string().as_str();
+                    empty_squares = 0;
+                }
+                output += p.to_string().as_str()
+            }
+            if empty_squares != 0 {
+                output += &format!("{}", empty_squares);
+            }
+            if rank != 7 {
+                output.push('/');
+            }
+        }
+
+        output += &format!(" {}", if self.white_to_move { "w" } else { "b" });
+
+        if self.castle.iter().all(|x| !x) {
+            output += " -";
+        } else {
+            output.push(' ');
+            for (i, &can_castle) in self.castle.iter().enumerate() {
+                let side = Piece::try_from(((i & 1) | ((i >> 1) * piece::BLACK)) as u8).unwrap();
+                if can_castle {
+                    output += &format!("{}", side);
+                }
+            }
+        }
+
+        if let Some(ept) = self.ep_target {
+            output += &format!(" {}", ept)
+        } else {
+            output += " -"
+        }
+
+        output += &format!(" {}", self.halfmove);
+        output += &format!(" {}", self.fullmove);
+
+        return output;
+    }
+
+    pub fn from_fen(fen: impl Into<String>) -> Result<Self, BoardError> {
+        create_board(fen)
+    }
+}
+
+pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
+    let f: String = fen.into();
+    if !is_valid(&f) {
+        return Err(BoardError::new(
+            ErrorKind::InvalidInput,
+            "Invalid FEN input.",
+        ));
+    }
+
+    let mut board = Board {
+        pieces: [0, 0, 0, 0, 0, 0, u64::MAX, 0, 0, 0, 0, 0, 0, 0],
+        white_to_move: true,
+        castle: [false; 4],
+        ep_target: None,
+        halfmove: 0,
+        fullmove: 0,
+        move_history: vec![],
+    };
+
+    let mut sections = f.split(' ');
+
+    let b = sections.next().unwrap();
+    for (y, row) in b.split('/').enumerate() {
+        let mut offset: usize = 0;
+        for (x, symbol) in row.chars().enumerate() {
+            if symbol.is_numeric() {
+                offset += symbol.to_string().parse::<usize>().unwrap() - 1;
+                continue;
+            }
+            let p: Piece = symbol.into();
+            let index = p.index();
+            let bit_index = (y << 3) + x + offset;
+            board.pieces[index] = board.pieces[index] | 1 << bit_index;
+            board.pieces[Piece::Empty.index()] =
+                board.pieces[Piece::Empty.index()] & !(1 << bit_index);
+        }
+    }
+
+    // Setting white_to_move
+    let stm = sections.next().unwrap();
+    if stm.to_lowercase() != "w" {
+        board.white_to_move = false;
+    }
+
+    // Castling rights
+    let castling = sections.next().unwrap();
+    for c in castling.chars() {
+        let p: Piece = c.into();
+        let mut i = match p {
+            Piece::King(_) => 0,
+            Piece::Queen(_) => 1,
+            _ => continue,
+        };
+        if !p.is_white() {
+            i += 2;
+        }
+        board.castle[i] = true;
+    }
+
+    if let Ok(p) = Position::from_str(sections.next().unwrap()) {
+        board.ep_target = Some(p);
+    }
+
+    board.halfmove = sections.next().unwrap().parse().unwrap();
+    board.fullmove = sections.next().unwrap().parse().unwrap();
+
+    return Ok(board);
+}
+
+pub fn is_valid<S: Into<String>>(fen: S) -> bool {
+    let f: String = fen.into();
+    let mut sections = f.split(' ');
+
+    // Checking the board section
+    let b = match sections.next() {
+        Some(b) => b,
+        None => return false,
+    };
+    let rows = b.split("/");
+    let mut row_count = 0;
+    let mut pos_count = 0;
+    for row in rows {
+        row_count += 1;
+        for c in row.chars() {
+            if c.is_ascii_digit() {
+                pos_count += c.to_string().parse::<i32>().unwrap();
+            } else {
+                if Piece::Empty == c.into() {
+                    return false;
+                }
+                pos_count += 1;
+            }
+        }
+    }
+    if row_count != 8 || pos_count != 64 {
+        return false;
+    }
+
+    let patterns: [&str; 5] = [
+        r"^(?:w|b)$",
+        r"^(?:K?Q?k?q?|-)$",
+        r"^(?:[a-h][36]|-)$",
+        r"^[0-9]{1,2}$",
+        r"^[0-9]+$",
+    ];
+
+    for (i, section) in sections.enumerate() {
+        if i > 4 {
+            return false;
+        }
+        let re = Regex::new(patterns[i]).unwrap();
+        if !re.is_match(section) {
+            return false;
+        }
+    }
+    return true;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fen;
+
+    use super::create_board;
+
+    fn valid_fens() -> [String; 6] {
+        return [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string(),
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".to_string(),
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1".to_string(),
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1".to_string(),
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".to_string(),
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".to_string(),
+        ];
+    }
+
+    #[test]
+    fn test_is_valid() {
+        let fen_strings = [
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                true,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PP2PPPPP/RNBQKBNR w KQkq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQfdskq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR p KQkq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - -324 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 -219",
+                false,
+            ),
+        ];
+        for (fen, is_valid) in fen_strings {
+            assert_eq!(fen::is_valid(fen), is_valid, "Testing {}", fen);
+        }
+    }
+
+    #[test]
+    fn test_create_board() {
+        let fens = valid_fens();
+
+        for f in fens {
+            let game = create_board(&f).expect("Failed to create game");
+            println!("{}", game);
+            assert_eq!(f, game.to_fen());
+        }
+    }
+}
