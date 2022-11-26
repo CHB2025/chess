@@ -1,6 +1,6 @@
-use std::{collections::HashMap, vec};
+use std::vec;
 
-use crate::{moves::Move, piece::Piece, position::Position, Board};
+use crate::{moves::Move, piece::Piece, position::Square, Bitboard, Board};
 
 const UP: isize = -8;
 const DOWN: isize = 8;
@@ -18,7 +18,7 @@ impl Board {
             .fold(0, |team, piece| (team | piece));
     }
 
-    pub fn is_attacked(&self, pos: Position, by_white: bool) -> bool {
+    pub fn is_attacked(&self, pos: Square, by_white: bool) -> bool {
         let mvs = self.attacks(by_white);
         for m in mvs {
             if m.dest == pos {
@@ -80,62 +80,6 @@ impl Board {
                 }
             })
             .collect();
-    }
-
-    pub fn perft(&mut self, depth: usize) -> usize {
-        if depth == 0 {
-            return 1;
-        }
-        let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
-        self.perft_with_map(depth, &mut tps)
-    }
-
-    pub fn divided_perft(&mut self, depth: usize) {
-        let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
-        let mut total = 0;
-        for m in self.pseudolegal_moves(self.white_to_move) {
-            if let Ok(_) = self.make(m) {
-                let mc = self.perft_with_map(depth - 1, &mut tps);
-                total += mc;
-                self.unmake();
-                println!("{m}: {mc}");
-            }
-        }
-        println!();
-        println!("Nodes Searched: {total}");
-    }
-
-    fn perft_with_map(
-        &mut self,
-        depth: usize,
-        tps: &mut HashMap<u64, HashMap<usize, usize>>,
-    ) -> usize {
-        if depth == 0 {
-            return 1;
-        }
-        if !tps.contains_key(&self.hash) {
-            let depth_map: HashMap<usize, usize> = HashMap::new();
-            tps.insert(self.hash, depth_map);
-        }
-        if !tps[&self.hash].contains_key(&depth) {
-            let nodes: usize = self
-                .pseudolegal_moves(self.white_to_move)
-                .into_iter()
-                .filter_map(|m| {
-                    if let Ok(_) = self.make(m) {
-                        let t = Some(self.perft_with_map(depth - 1, tps));
-                        self.unmake();
-                        t
-                    } else {
-                        None
-                    }
-                })
-                .sum();
-
-            let depth_map = tps.get_mut(&self.hash).unwrap();
-            depth_map.insert(depth, nodes);
-        }
-        return tps[&self.hash][&depth];
     }
 
     pub fn moves_by_piece(&self, piece: Piece) -> Vec<Move> {
@@ -219,8 +163,8 @@ impl Board {
 
         if self.castle[0 | index_offset] && f & ks_filter == ks_filter {
             // King Side Castle
-            let origin: Position = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Position = ((origin.index() as isize + 2 * RIGHT) as u8)
+            let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
+            let dest: Square = ((origin.index() as isize + 2 * RIGHT) as u8)
                 .try_into()
                 .unwrap();
             mvs.push(Move {
@@ -231,8 +175,8 @@ impl Board {
         }
         if self.castle[1 | index_offset] && f & qs_filter == qs_filter {
             // Queen Side Castle
-            let origin: Position = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Position = ((origin.index() as isize + 2 * LEFT) as u8)
+            let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
+            let dest: Square = ((origin.index() as isize + 2 * LEFT) as u8)
                 .try_into()
                 .unwrap();
             mvs.push(Move {
@@ -332,7 +276,7 @@ impl Board {
     }
 }
 
-fn moves(initial: u64, free: u64, cap: u64, dir: isize, single: bool) -> Vec<Move> {
+fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: isize, single: bool) -> Vec<Move> {
     let mut mv = if dir.is_positive() {
         initial << dir
     } else {
@@ -345,8 +289,8 @@ fn moves(initial: u64, free: u64, cap: u64, dir: isize, single: bool) -> Vec<Mov
     let mut response: Vec<Move> = vec![];
     while (end > 0 || attacks > 0) && (!single || mul == 1) {
         while end.leading_zeros() != u64::BITS {
-            let dest: Position = (63 - end.leading_zeros() as u8).try_into().unwrap();
-            let origin: Position = ((dest.index() as isize - dir * mul) as u8)
+            let dest: Square = (63 - end.leading_zeros() as u8).try_into().unwrap();
+            let origin: Square = ((dest.index() as isize - dir * mul) as u8)
                 .try_into()
                 .unwrap();
             response.push(Move {
@@ -358,8 +302,8 @@ fn moves(initial: u64, free: u64, cap: u64, dir: isize, single: bool) -> Vec<Mov
             end = end & !(1 << dest.index());
         }
         while attacks.leading_zeros() != u64::BITS {
-            let dest: Position = (63 - attacks.leading_zeros() as u8).try_into().unwrap();
-            let origin: Position = ((dest.index() as isize - dir * mul) as u8)
+            let dest: Square = (63 - attacks.leading_zeros() as u8).try_into().unwrap();
+            let origin: Square = ((dest.index() as isize - dir * mul) as u8)
                 .try_into()
                 .unwrap();
             response.push(Move {
@@ -381,7 +325,7 @@ fn moves(initial: u64, free: u64, cap: u64, dir: isize, single: bool) -> Vec<Mov
     return response;
 }
 
-fn pawn_moves(initial: u64, legal_spaces: u64, dir: isize) -> Vec<Move> {
+fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: isize) -> Vec<Move> {
     let mut end = if dir.is_positive() {
         initial << dir
     } else {

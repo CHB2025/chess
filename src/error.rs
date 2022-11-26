@@ -8,8 +8,8 @@ pub enum ErrorKind {
 
 #[derive(Debug, Clone)]
 pub struct BoardError {
-    kind: ErrorKind,
-    message: Option<String>,
+    pub kind: ErrorKind,
+    pub message: Option<String>,
 }
 
 impl fmt::Display for BoardError {

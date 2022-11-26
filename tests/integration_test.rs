@@ -1,4 +1,49 @@
+use std::collections::{hash_map::Entry, HashMap};
+
 use chess_board::Board;
+
+fn perft(board: &mut Board, depth: usize) -> usize {
+    if depth == 0 {
+        return 1;
+    }
+    let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
+    perft_with_map(board, depth, &mut tps)
+}
+
+fn perft_with_map(
+    board: &mut Board,
+    depth: usize,
+    tps: &mut HashMap<u64, HashMap<usize, usize>>,
+) -> usize {
+    if depth == 0 {
+        return 1;
+    }
+    if let Entry::Occupied(e) = tps
+        .entry(board.get_hash())
+        .or_insert(HashMap::new())
+        .entry(depth)
+    {
+        return *e.get();
+    }
+
+    let value = board
+        .pseudolegal_moves(board.is_white_to_move())
+        .into_iter()
+        .filter_map(|m| {
+            if let Ok(_) = board.make(m) {
+                let t = Some(perft_with_map(board, depth - 1, tps));
+                board.unmake();
+                t
+            } else {
+                None
+            }
+        })
+        .sum();
+    *tps.entry(board.get_hash())
+        .or_insert(HashMap::new())
+        .entry(depth)
+        .or_insert(value)
+}
 
 struct PerftResult {
     name: String,
@@ -55,7 +100,7 @@ fn test_perft() {
         let mut b = Board::from_fen(&test.fen).unwrap();
         for (i, depth) in test.depth.iter().enumerate() {
             println!("Testing {} to depth {}", test.name, depth);
-            assert_eq!(test.nodes[i], b.perft(*depth));
+            assert_eq!(test.nodes[i], perft(&mut b, *depth));
         }
     }
 }

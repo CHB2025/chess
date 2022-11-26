@@ -1,18 +1,25 @@
-use rand::{self, RngCore};
+use rand::{self, RngCore, SeedableRng};
+use std::hash::Hash;
 
 use crate::{moves::MoveState, piece::Piece, Board};
 
 const MAX_PIECE_INDEX: usize = 767;
+const SEED: u64 = 0xd635879da32ff6c5;
+
+impl Hash for Board {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
 
 impl Board {
     pub fn initialize_hash(&mut self) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::StdRng::seed_from_u64(SEED);
         for i in 0..self.hash_keys.len() {
             self.hash_keys[i] = rng.next_u64();
         }
-        self.hash = self.hash();
-    }
-    pub fn hash(&self) -> u64 {
+
+        // Creating hash
         let mut h = 0u64;
         for (i, p) in self.into_iter().enumerate() {
             if p != Piece::Empty {
@@ -35,7 +42,7 @@ impl Board {
             let col = (pos.index() & 0b111) as usize;
             h ^= self.hash_keys[next_index + col - 1]
         }
-        return h;
+        self.hash = h;
     }
 
     pub fn increment_hash(&mut self, ms: MoveState, p: Piece) {
@@ -98,6 +105,9 @@ impl Board {
             self.hash ^= self.hash_keys[next_index + col - 1]
         }
     }
+    pub fn get_hash(&self) -> u64 {
+        return self.hash;
+    }
 }
 
 fn hash_index(p: Piece, index: usize) -> usize {
@@ -122,8 +132,18 @@ mod tests {
         assert_ne!(initial, board.hash);
         board.unmake();
         assert_eq!(initial, board.hash);
-        assert_eq!(board.hash, board.hash());
         board.make(Move::from_str("a2a3").unwrap()).unwrap();
         assert_eq!(after, board.hash);
+    }
+
+    #[test]
+    fn test_circular() {
+        let mut board = Board::new();
+        let initial = board.hash;
+        let mvs = ["g1h3", "b8c6", "h3g1", "c6b8"];
+        for m in mvs {
+            board.make(m.parse().unwrap()).unwrap();
+        }
+        assert_eq!(initial, board.hash);
     }
 }

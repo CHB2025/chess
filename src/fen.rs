@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
-use crate::{piece, piece::Piece, position::Position, Board};
+use crate::{piece, piece::Piece, position::Square, Board};
 use regex::Regex;
 
 impl Board {
-    pub fn to_fen(self) -> String {
+    pub fn to_fen(&self) -> String {
         let mut output = String::new();
         let pw_rep = self.to_board_representation();
 
@@ -122,7 +122,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
         board.castle[i] = true;
     }
 
-    if let Ok(p) = Position::from_str(sections.next().unwrap()) {
+    if let Ok(p) = Square::from_str(sections.next().unwrap()) {
         board.ep_target = Some(p);
     }
 
@@ -131,10 +131,10 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     board.initialize_hash();
 
-    return Ok(board);
+    Ok(board)
 }
 
-pub fn is_valid<S: Into<String>>(fen: S) -> bool {
+fn is_valid<S: Into<String>>(fen: S) -> bool {
     let f: String = fen.into();
     let mut sections = f.split(' ');
 
@@ -170,7 +170,7 @@ pub fn is_valid<S: Into<String>>(fen: S) -> bool {
         r"^[0-9]{1,2}$",
         r"^[0-9]+$",
     ];
-
+    let mut count: usize = 0;
     for (i, section) in sections.enumerate() {
         if i > 4 {
             return false;
@@ -179,8 +179,9 @@ pub fn is_valid<S: Into<String>>(fen: S) -> bool {
         if !re.is_match(section) {
             return false;
         }
+        count += 1;
     }
-    return true;
+    count == patterns.len()
 }
 
 #[cfg(test)]

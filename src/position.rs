@@ -3,9 +3,9 @@ use std::{fmt, str};
 use crate::error::{BoardError, ErrorKind};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Position(u8);
+pub struct Square(u8);
 
-impl fmt::Display for Position {
+impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let col = self.0 & 0b111;
         let row = self.0 >> 3;
@@ -13,7 +13,7 @@ impl fmt::Display for Position {
     }
 }
 
-impl str::FromStr for Position {
+impl str::FromStr for Square {
     type Err = BoardError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -24,11 +24,11 @@ impl str::FromStr for Position {
             ));
         }
         let p_bytes = s.as_bytes();
-        return Ok(Position((p_bytes[0] - b'a') + ((b'8' - p_bytes[1]) << 3)));
+        return Ok(Square((p_bytes[0] - b'a') + ((b'8' - p_bytes[1]) << 3)));
     }
 }
 
-impl TryFrom<u8> for Position {
+impl TryFrom<u8> for Square {
     type Error = BoardError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         if value > 63 {
@@ -38,11 +38,11 @@ impl TryFrom<u8> for Position {
             ));
         }
 
-        Ok(Position(value))
+        Ok(Square(value))
     }
 }
 
-impl Position {
+impl Square {
     pub fn index(self) -> u8 {
         self.0
     }
@@ -61,25 +61,25 @@ fn is_valid_position(position: &str) -> bool {
 mod tests {
     use std::str::FromStr;
 
-    use crate::position::Position;
+    use crate::position::Square;
 
     #[test]
     fn test_position_from_bit_index() {
-        assert_eq!("a1", Position(56).to_string());
-        assert_eq!("d4", Position(35).to_string());
-        assert!(Position::try_from(68).is_err());
+        assert_eq!("a1", Square(56).to_string());
+        assert_eq!("d4", Square(35).to_string());
+        assert!(Square::try_from(68).is_err());
     }
 
     #[test]
     fn test_bit_index_from_position() {
-        assert_eq!(Position(0), "a8".parse().unwrap());
-        assert_eq!(Position(35), "d4".parse().unwrap());
-        assert!("j3".parse::<Position>().is_err());
+        assert_eq!(Square(0), "a8".parse().unwrap());
+        assert_eq!(Square(35), "d4".parse().unwrap());
+        assert!("j3".parse::<Square>().is_err());
     }
 
     #[test]
     fn test_from_and_to_string() {
-        assert_eq!("a1", Position::from_str("a1").unwrap().to_string().as_str());
+        assert_eq!("a1", Square::from_str("a1").unwrap().to_string().as_str());
     }
 
     #[test]
@@ -87,7 +87,7 @@ mod tests {
         for rank in 0..8 {
             print!("|");
             for file in 0..8 {
-                let p = Position(file + (rank << 3));
+                let p = Square(file + (rank << 3));
                 print!(" {p}({}) |", file + (rank << 3));
             }
             println!("");

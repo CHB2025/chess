@@ -6,13 +6,13 @@ mod make;
 use crate::{
     error::{BoardError, ErrorKind},
     piece::Piece,
-    position::Position,
+    position::Square,
 };
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Move {
-    pub origin: Position,
-    pub dest: Position,
+    pub origin: Square,
+    pub dest: Square,
     pub promotion: Piece, //Doesn't really need a color...
 }
 
@@ -35,8 +35,8 @@ impl str::FromStr for Move {
                 "Improperly formatted move",
             ));
         }
-        let origin: Position = s.get(0..2).unwrap().parse()?;
-        let dest: Position = s.get(2..4).unwrap().parse()?;
+        let origin: Square = s.get(0..2).unwrap().parse()?;
+        let dest: Square = s.get(2..4).unwrap().parse()?;
 
         let promotion = if let Some(promo) = s.get(4..5) {
             let white_promotion = s.get(1..2).unwrap() == "7" && s.get(3..4).unwrap() == "8";
@@ -71,5 +71,5 @@ pub struct MoveState {
     pub capture: Piece,
     pub castle: [bool; 4],
     pub halfmove: u32,
-    pub ep_target: Option<Position>,
+    pub ep_target: Option<Square>,
 }

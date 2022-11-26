@@ -2,7 +2,7 @@ use crate::{
     error::{BoardError, ErrorKind},
     moves::{Move, MoveState},
     piece::Piece,
-    position::Position,
+    position::Square,
     Board,
 };
 
@@ -23,7 +23,7 @@ impl Board {
         if piece == Piece::King(piece.is_white())
             && mv.dest.index().abs_diff(mv.origin.index()) == 2
             && (self.is_attacked(
-                Position::try_from(mv.dest.index().max(mv.origin.index()) - 1).unwrap(),
+                Square::try_from(mv.dest.index().max(mv.origin.index()) - 1).unwrap(),
                 !piece.is_white(),
             ) || self.is_attacked(mv.origin, !piece.is_white()))
         {
@@ -106,7 +106,7 @@ impl Board {
             // Check if double push to set ep_target
             if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
                 self.ep_target =
-                    Some(Position::try_from(mv.origin.index().max(mv.dest.index()) - 8).unwrap());
+                    Some(Square::try_from(mv.origin.index().max(mv.dest.index()) - 8).unwrap());
             } else {
                 self.ep_target = None;
             }
@@ -139,7 +139,7 @@ impl Board {
         self.increment_hash(move_state, piece);
 
         // check if king is in check
-        let king: Position = (63
+        let king: Square = (63
             - self.pieces[Piece::King(piece.is_white()).index()].leading_zeros() as u8)
             .try_into()
             .unwrap();

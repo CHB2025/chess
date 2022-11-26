@@ -2,21 +2,23 @@ use std::fmt;
 
 use moves::MoveState;
 use piece::Piece;
-use position::Position;
+use position::Square;
 
 pub mod error;
 pub mod fen;
-mod hash;
+pub mod hash;
 pub mod moves;
 pub mod piece;
 pub mod position;
 
-#[derive(Debug, Clone)]
+pub type Bitboard = u64;
+
+#[derive(Clone)]
 pub struct Board {
-    pieces: [u64; 14], // K,Q,B,N,R,P,-,-,k,q,b,n,r,p. So i & 8 == 0 = is White, i & 7 = Piece
+    pieces: [Bitboard; 14], // K,Q,B,N,R,P,-,-,k,q,b,n,r,p. So i & 8 == 0 = is White, i & 7 = Piece
     white_to_move: bool,
     castle: [bool; 4],
-    ep_target: Option<Position>,
+    ep_target: Option<Square>,
     halfmove: u32,
     fullmove: u32,
     move_history: Vec<MoveState>,
@@ -26,6 +28,12 @@ pub struct Board {
 
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_fen())
+    }
+}
+
+impl fmt::Debug for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let board = self.to_board_representation();
         let mut output = String::new();
         for row in 0..8 {
@@ -68,14 +76,18 @@ impl Board {
         return fen::create_board(&fen).unwrap();
     }
 
-    fn piece_at(&self, pos: Position) -> Piece {
+    pub fn piece_at(&self, pos: Square) -> Piece {
         let mask = 1u64 << pos.index();
         for (i, p) in self.pieces.iter().enumerate() {
             if p & mask != 0 {
                 return (i as u8).try_into().unwrap();
             }
         }
-        // Only reachable if piece is invalid
+        // Only reachable if board is invalid
         return Piece::Empty;
+    }
+
+    pub fn is_white_to_move(&self) -> bool {
+        return self.white_to_move;
     }
 }
