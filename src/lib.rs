@@ -6,6 +6,7 @@ use position::Position;
 
 pub mod error;
 pub mod fen;
+mod hash;
 pub mod moves;
 pub mod piece;
 pub mod position;
@@ -19,6 +20,8 @@ pub struct Board {
     halfmove: u32,
     fullmove: u32,
     move_history: Vec<MoveState>,
+    hash: u64,
+    hash_keys: [u64; 781],
 }
 
 impl fmt::Display for Board {

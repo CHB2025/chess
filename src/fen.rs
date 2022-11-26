@@ -78,6 +78,8 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
         halfmove: 0,
         fullmove: 0,
         move_history: vec![],
+        hash: 0,
+        hash_keys: [0u64; 781],
     };
 
     let mut sections = f.split(' ');
@@ -126,6 +128,8 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     board.halfmove = sections.next().unwrap().parse().unwrap();
     board.fullmove = sections.next().unwrap().parse().unwrap();
+
+    board.initialize_hash();
 
     return Ok(board);
 }

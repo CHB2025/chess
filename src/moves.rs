@@ -11,9 +11,9 @@ use crate::{
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Move {
-    origin: Position,
-    dest: Position,
-    promotion: Piece, //Doesn't really need a color...
+    pub origin: Position,
+    pub dest: Position,
+    pub promotion: Piece, //Doesn't really need a color...
 }
 
 impl fmt::Display for Move {

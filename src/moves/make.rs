@@ -40,13 +40,6 @@ impl Board {
             false
         };
 
-        let is_ks_castle: bool = Piece::King(piece.is_white()) == piece
-            && mv.dest.index().abs_diff(mv.origin.index()) == 2
-            && mv.dest.index() > mv.origin.index();
-        let is_qs_castle: bool = Piece::King(piece.is_white()) == piece
-            && mv.dest.index().abs_diff(mv.origin.index()) == 2
-            && mv.dest.index() < mv.origin.index();
-
         let capture = if is_ep {
             Piece::Pawn(!self.white_to_move)
         } else {
@@ -74,7 +67,11 @@ impl Board {
             self.pieces[capture.index()] &= !(1 << index);
             self.pieces[Piece::Empty.index()] |= 1 << index;
         }
-        if is_ks_castle || is_qs_castle {
+
+        let is_castle = Piece::King(piece.is_white()) == piece
+            && mv.dest.index().abs_diff(mv.origin.index()) == 2;
+        let is_ks_castle: bool = is_castle && mv.dest.index() > mv.origin.index();
+        if is_castle {
             let rook = Piece::Rook(piece.is_white());
             let r_origin = if is_ks_castle {
                 mv.origin.index() | 0b111
@@ -139,6 +136,7 @@ impl Board {
                 self.castle[0 | ci_offset] = false;
             }
         }
+        self.increment_hash(move_state, piece);
 
         // check if king is in check
         let king: Position = (63
@@ -165,17 +163,7 @@ impl Board {
         } else {
             Piece::Pawn(ms.mv.promotion.is_white())
         };
-        let is_ep = if let Some(e) = ms.ep_target {
-            e.index() == ms.mv.dest.index() && piece == Piece::Pawn(!self.white_to_move)
-        } else {
-            false
-        };
-        let is_ks_castle: bool = Piece::King(piece.is_white()) == piece
-            && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2
-            && ms.mv.dest.index() > ms.mv.origin.index();
-        let is_qs_castle: bool = Piece::King(piece.is_white()) == piece
-            && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2
-            && ms.mv.dest.index() < ms.mv.origin.index();
+        self.increment_hash(ms, piece);
 
         self.move_piece(piece, ms.mv.dest.index(), ms.mv.origin.index());
         self.move_piece(Piece::Empty, ms.mv.origin.index(), ms.mv.dest.index());
@@ -183,6 +171,12 @@ impl Board {
         if ms.mv.promotion != Piece::Empty {
             self.pieces[ms.mv.promotion.index()] &= !(1 << ms.mv.dest.index());
         }
+
+        let is_ep = if let Some(e) = ms.ep_target {
+            e.index() == ms.mv.dest.index() && piece == Piece::Pawn(!self.white_to_move)
+        } else {
+            false
+        };
 
         if is_ep {
             let bit_index = ((ms.mv.origin.index() >> 3) << 3) | (ms.mv.dest.index() & 0b111);
@@ -192,7 +186,11 @@ impl Board {
             self.pieces[Piece::Empty.index()] &= !(1 << ms.mv.dest.index());
             self.pieces[ms.capture.index()] |= 1 << ms.mv.dest.index();
         };
-        if is_ks_castle || is_qs_castle {
+
+        let is_castle = Piece::King(piece.is_white()) == piece
+            && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
+        let is_ks_castle: bool = is_castle && ms.mv.dest.index() > ms.mv.origin.index();
+        if is_castle {
             let rook = Piece::Rook(piece.is_white());
             let r_origin = if is_ks_castle {
                 ms.mv.origin.index() | 0b111

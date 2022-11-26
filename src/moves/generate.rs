@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, sync::mpsc, thread, vec};
+use std::{collections::HashMap, vec};
 
 use crate::{moves::Move, piece::Piece, position::Position, Board};
 
@@ -86,61 +86,56 @@ impl Board {
         if depth == 0 {
             return 1;
         }
-        self.pseudolegal_moves(self.white_to_move)
-            .into_iter()
-            .filter_map(|m| {
-                if let Ok(_) = self.make(m) {
-                    let t = Some(self.perft(depth - 1));
-                    self.unmake();
-                    t
-                } else {
-                    None
-                }
-            })
-            .sum()
-    }
-
-    pub fn concurrent_perft(&self, depth: usize) -> usize {
-        if depth == 0 {
-            return 1;
-        }
-        let (tx, rx) = mpsc::channel();
-        let mvs = self.pseudolegal_moves(self.white_to_move);
-        let thread_count = thread::available_parallelism()
-            .unwrap_or(NonZeroUsize::new(4).unwrap())
-            .get();
-        let (thread_moves, extra_moves) = (mvs.len() / thread_count, mvs.len() % thread_count);
-        for i in 0..thread_count {
-            let start = i * thread_moves + extra_moves.min(i);
-            let finish = (i + 1) * thread_moves + extra_moves.min(i + 1);
-            let chunk = (&mvs[start..finish]).to_owned();
-            let mut b = self.clone();
-            let tx1 = tx.clone();
-            thread::spawn(move || {
-                for mv in chunk {
-                    if let Ok(_) = b.make(mv) {
-                        tx1.send(b.perft(depth - 1)).unwrap();
-                        b.unmake();
-                    }
-                }
-            });
-        }
-        drop(tx);
-        rx.into_iter().sum()
+        let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
+        self.perft_with_map(depth, &mut tps)
     }
 
     pub fn divided_perft(&mut self, depth: usize) {
+        let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
         let mut total = 0;
         for m in self.pseudolegal_moves(self.white_to_move) {
             if let Ok(_) = self.make(m) {
-                let mc = self.perft(depth - 1);
+                let mc = self.perft_with_map(depth - 1, &mut tps);
                 total += mc;
                 self.unmake();
                 println!("{m}: {mc}");
             }
         }
         println!();
-        println!("Nodes Searched: {total}")
+        println!("Nodes Searched: {total}");
+    }
+
+    fn perft_with_map(
+        &mut self,
+        depth: usize,
+        tps: &mut HashMap<u64, HashMap<usize, usize>>,
+    ) -> usize {
+        if depth == 0 {
+            return 1;
+        }
+        if !tps.contains_key(&self.hash) {
+            let depth_map: HashMap<usize, usize> = HashMap::new();
+            tps.insert(self.hash, depth_map);
+        }
+        if !tps[&self.hash].contains_key(&depth) {
+            let nodes: usize = self
+                .pseudolegal_moves(self.white_to_move)
+                .into_iter()
+                .filter_map(|m| {
+                    if let Ok(_) = self.make(m) {
+                        let t = Some(self.perft_with_map(depth - 1, tps));
+                        self.unmake();
+                        t
+                    } else {
+                        None
+                    }
+                })
+                .sum();
+
+            let depth_map = tps.get_mut(&self.hash).unwrap();
+            depth_map.insert(depth, nodes);
+        }
+        return tps[&self.hash][&depth];
     }
 
     pub fn moves_by_piece(&self, piece: Piece) -> Vec<Move> {
