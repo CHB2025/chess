@@ -6,7 +6,7 @@ mod make;
 use crate::{
     error::{BoardError, ErrorKind},
     piece::Piece,
-    position::Square,
+    square::Square,
 };
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -35,12 +35,15 @@ impl str::FromStr for Move {
                 "Improperly formatted move",
             ));
         }
-        let origin: Square = s.get(0..2).unwrap().parse()?;
-        let dest: Square = s.get(2..4).unwrap().parse()?;
+        let get_err = || BoardError::new(ErrorKind::InvalidInput, "Improperly formatted move");
+        let origin: Square = s.get(0..2).ok_or_else(get_err)?.parse()?;
+        let dest: Square = s.get(2..4).ok_or_else(get_err)?.parse()?;
 
         let promotion = if let Some(promo) = s.get(4..5) {
-            let white_promotion = s.get(1..2).unwrap() == "7" && s.get(3..4).unwrap() == "8";
-            let black_promotion = s.get(1..2).unwrap() == "2" && s.get(3..4).unwrap() == "1";
+            let white_promotion =
+                s.get(1..2).ok_or_else(get_err)? == "7" && s.get(3..4).ok_or_else(get_err)? == "8";
+            let black_promotion =
+                s.get(1..2).ok_or_else(get_err)? == "2" && s.get(3..4).ok_or_else(get_err)? == "1";
             if !["k", "q", "b", "n", "r"].contains(&promo) || !(white_promotion || black_promotion)
             {
                 return Err(BoardError::new(

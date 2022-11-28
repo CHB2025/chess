@@ -2,20 +2,20 @@ use std::fmt;
 
 use moves::MoveState;
 use piece::Piece;
-use position::Square;
+use position::Position;
+use square::Square;
 
 pub mod error;
 pub mod fen;
 pub mod hash;
 pub mod moves;
 pub mod piece;
-pub mod position;
-
-pub type Bitboard = u64;
+pub(crate) mod position;
+pub mod square;
 
 #[derive(Clone)]
 pub struct Board {
-    pieces: [Bitboard; 14], // K,Q,B,N,R,P,-,-,k,q,b,n,r,p. So i & 8 == 0 = is White, i & 7 = Piece
+    position: Position, // K,Q,B,N,R,P,-,-,k,q,b,n,r,p. So i & 8 == 0 = is White, i & 7 = Piece
     white_to_move: bool,
     castle: [bool; 4],
     ep_target: Option<Square>,
@@ -60,8 +60,8 @@ impl Board {
     fn to_board_representation(&self) -> [Piece; 64] {
         let mut board: [Piece; 64] = [Piece::Empty; 64];
 
-        for index in 0..self.pieces.len() {
-            let mut v = self.pieces[index];
+        for index in 0..self.position.len() {
+            let mut v = self.position[index];
             while v.leading_zeros() != u64::BITS {
                 let first_bit = 63 - v.leading_zeros();
                 v = v & !(1 << first_bit);
@@ -71,20 +71,19 @@ impl Board {
         return board;
     }
 
-    pub fn new() -> Self {
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
-        return fen::create_board(&fen).unwrap();
-    }
-
-    pub fn piece_at(&self, pos: Square) -> Piece {
-        let mask = 1u64 << pos.index();
-        for (i, p) in self.pieces.iter().enumerate() {
+    pub fn piece_at(&self, index: Square) -> Piece {
+        let mask = 1u64 << index.index();
+        for (i, p) in self.position.iter().enumerate() {
             if p & mask != 0 {
                 return (i as u8).try_into().unwrap();
             }
         }
-        // Only reachable if board is invalid
-        return Piece::Empty;
+        unreachable!();
+    }
+
+    pub fn new() -> Self {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
+        return fen::create_board(&fen).unwrap();
     }
 
     pub fn is_white_to_move(&self) -> bool {

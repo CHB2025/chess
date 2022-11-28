@@ -1,6 +1,6 @@
 use std::vec;
 
-use crate::{moves::Move, piece::Piece, position::Square, Bitboard, Board};
+use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board};
 
 const UP: isize = -8;
 const DOWN: isize = 8;
@@ -13,7 +13,7 @@ const NOT_H_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 impl Board {
     pub fn team_pieces(&self, white: bool) -> u64 {
         let range = Piece::King(white).index()..=Piece::Pawn(white).index();
-        return self.pieces[range]
+        return self.position[range]
             .iter()
             .fold(0, |team, piece| (team | piece));
     }
@@ -46,8 +46,7 @@ impl Board {
         mvs.append(&mut self.rook_moves(for_white));
 
         // Pawns have different attacks then movement
-        let pawns = Piece::Pawn(for_white);
-        let initial = self.pieces[pawns.index()];
+        let initial = self.position[Piece::Pawn(for_white)];
         let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
         let free_space = !self.team_pieces(for_white); // Look at any empty square or opposing pieces
         mvs.append(&mut pawn_moves(
@@ -99,8 +98,8 @@ impl Board {
 
         let piece = Piece::Pawn(for_white);
         let dir = if for_white { UP } else { DOWN };
-        let initial = self.pieces[piece.index()];
-        let mut free_space = self.pieces[Piece::Empty.index()];
+        let initial = self.position[piece];
+        let mut free_space = self.position[Piece::Empty];
 
         moves.append(&mut pawn_moves(initial, free_space, dir));
 
@@ -137,8 +136,8 @@ impl Board {
     }
 
     fn king_moves(&self, for_white: bool) -> Vec<Move> {
-        let i = self.pieces[Piece::King(for_white).index()];
-        let f = self.pieces[Piece::Empty.index()];
+        let i = self.position[Piece::King(for_white)];
+        let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
         let dirs = [
@@ -189,8 +188,8 @@ impl Board {
     }
 
     fn queen_moves(&self, for_white: bool) -> Vec<Move> {
-        let i = self.pieces[Piece::Queen(for_white).index()];
-        let f = self.pieces[Piece::Empty.index()];
+        let i = self.position[Piece::Queen(for_white)];
+        let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
         let dirs = [
@@ -212,8 +211,8 @@ impl Board {
     }
 
     fn bishop_moves(&self, for_white: bool) -> Vec<Move> {
-        let i = self.pieces[Piece::Bishop(for_white).index()];
-        let f = self.pieces[Piece::Empty.index()];
+        let i = self.position[Piece::Bishop(for_white)];
+        let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
         let dirs = [
@@ -231,8 +230,8 @@ impl Board {
     }
 
     fn rook_moves(&self, for_white: bool) -> Vec<Move> {
-        let i = self.pieces[Piece::Rook(for_white).index()];
-        let f = self.pieces[Piece::Empty.index()];
+        let i = self.position[Piece::Rook(for_white)];
+        let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
         let dirs = [
@@ -250,8 +249,8 @@ impl Board {
     }
 
     fn knight_moves(&self, for_white: bool) -> Vec<Move> {
-        let i = self.pieces[Piece::Knight(for_white).index()];
-        let f = self.pieces[Piece::Empty.index()];
+        let i = self.position[Piece::Knight(for_white)];
+        let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
         let not_ab = 0xfcfcfcfcfcfcfcfc;

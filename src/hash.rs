@@ -13,7 +13,7 @@ impl Hash for Board {
 }
 
 impl Board {
-    pub fn initialize_hash(&mut self) {
+    pub(crate) fn initialize_hash(&mut self) {
         let mut rng = rand::rngs::StdRng::seed_from_u64(SEED);
         for i in 0..self.hash_keys.len() {
             self.hash_keys[i] = rng.next_u64();
@@ -45,7 +45,7 @@ impl Board {
         self.hash = h;
     }
 
-    pub fn increment_hash(&mut self, ms: MoveState, p: Piece) {
+    pub(crate) fn increment_hash(&mut self, ms: MoveState, p: Piece) {
         self.hash ^= self.hash_keys[hash_index(p, ms.mv.origin.index().into())];
         if ms.mv.promotion == Piece::Empty {
             self.hash ^= self.hash_keys[hash_index(p, ms.mv.dest.index().into())];

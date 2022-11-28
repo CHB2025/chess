@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
-use crate::{piece, piece::Piece, position::Square, Board};
+use crate::{piece, piece::Piece, square::Square, Board};
 use regex::Regex;
 
 impl Board {
@@ -70,8 +70,11 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
         ));
     }
 
+    // Should never be used since FEN is checked
+    let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
+
     let mut board = Board {
-        pieces: [0, 0, 0, 0, 0, 0, u64::MAX, 0, 0, 0, 0, 0, 0, 0],
+        position: [0, 0, 0, 0, 0, 0, u64::MAX, 0, 0, 0, 0, 0, 0, 0],
         white_to_move: true,
         castle: [false; 4],
         ep_target: None,
@@ -84,33 +87,31 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     let mut sections = f.split(' ');
 
-    let b = sections.next().unwrap();
+    let b = sections.next().ok_or_else(short_err)?;
     for (y, row) in b.split('/').enumerate() {
         let mut offset: usize = 0;
         for (x, symbol) in row.chars().enumerate() {
             if symbol.is_numeric() {
-                offset += symbol.to_string().parse::<usize>().unwrap() - 1;
+                offset += symbol.to_string().parse::<usize>()? - 1;
                 continue;
             }
-            let p: Piece = symbol.into();
-            let index = p.index();
+            let p: Piece = symbol.try_into()?;
             let bit_index = (y << 3) + x + offset;
-            board.pieces[index] = board.pieces[index] | 1 << bit_index;
-            board.pieces[Piece::Empty.index()] =
-                board.pieces[Piece::Empty.index()] & !(1 << bit_index);
+            board.position[p] |= 1 << bit_index;
+            board.position[Piece::Empty] &= !(1 << bit_index);
         }
     }
 
     // Setting white_to_move
-    let stm = sections.next().unwrap();
+    let stm = sections.next().ok_or_else(short_err)?;
     if stm.to_lowercase() != "w" {
         board.white_to_move = false;
     }
 
     // Castling rights
-    let castling = sections.next().unwrap();
+    let castling = sections.next().ok_or_else(short_err)?;
     for c in castling.chars() {
-        let p: Piece = c.into();
+        let p: Piece = c.try_into()?;
         let mut i = match p {
             Piece::King(_) => 0,
             Piece::Queen(_) => 1,
@@ -122,12 +123,12 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
         board.castle[i] = true;
     }
 
-    if let Ok(p) = Square::from_str(sections.next().unwrap()) {
+    if let Ok(p) = Square::from_str(sections.next().ok_or_else(short_err)?) {
         board.ep_target = Some(p);
     }
 
-    board.halfmove = sections.next().unwrap().parse().unwrap();
-    board.fullmove = sections.next().unwrap().parse().unwrap();
+    board.halfmove = sections.next().ok_or_else(short_err)?.parse()?;
+    board.fullmove = sections.next().ok_or_else(short_err)?.parse()?;
 
     board.initialize_hash();
 
@@ -150,11 +151,18 @@ fn is_valid<S: Into<String>>(fen: S) -> bool {
         row_count += 1;
         for c in row.chars() {
             if c.is_ascii_digit() {
-                pos_count += c.to_string().parse::<i32>().unwrap();
+                pos_count += match c.to_string().parse::<i32>() {
+                    Ok(c) => c,
+                    Err(_) => return false,
+                };
             } else {
-                if Piece::Empty == c.into() {
-                    return false;
-                }
+                match Piece::try_from(c) {
+                    Ok(p) => match p {
+                        Piece::Empty => return false,
+                        _ => (),
+                    },
+                    Err(_) => return false,
+                };
                 pos_count += 1;
             }
         }
@@ -175,7 +183,7 @@ fn is_valid<S: Into<String>>(fen: S) -> bool {
         if i > 4 {
             return false;
         }
-        let re = Regex::new(patterns[i]).unwrap();
+        let re = Regex::new(patterns[i]).expect("Invalid Regex used to check fen");
         if !re.is_match(section) {
             return false;
         }

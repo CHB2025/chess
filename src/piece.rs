@@ -39,11 +39,7 @@ impl str::FromStr for Piece {
     type Err = BoardError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let c: char = s.parse().map_err(|_| {
-            BoardError::new(ErrorKind::InvalidInput, "Unable to parse string as char")
-        })?;
-
-        Ok(Piece::from(c))
+        Piece::try_from(s.parse::<char>()?)
     }
 }
 
@@ -61,22 +57,36 @@ impl TryFrom<u8> for Piece {
             3 => Piece::Knight(value >> 3 == 0),
             4 => Piece::Rook(value >> 3 == 0),
             5 => Piece::Pawn(value >> 3 == 0),
-            _ => Piece::Empty,
+            6 => Piece::Empty,
+            _ => {
+                return Err(BoardError::new(
+                    ErrorKind::InvalidInput,
+                    "7 is not a valid piece type",
+                ))
+            }
         })
     }
 }
 
-impl From<char> for Piece {
-    fn from(c: char) -> Self {
-        match c.to_ascii_lowercase() {
+impl TryFrom<char> for Piece {
+    type Error = BoardError;
+
+    fn try_from(c: char) -> Result<Self, Self::Error> {
+        Ok(match c.to_ascii_lowercase() {
             'k' => Piece::King(c.is_uppercase()),
             'q' => Piece::Queen(c.is_uppercase()),
             'b' => Piece::Bishop(c.is_uppercase()),
             'n' => Piece::Knight(c.is_uppercase()),
             'r' => Piece::Rook(c.is_uppercase()),
             'p' => Piece::Pawn(c.is_uppercase()),
-            _ => Piece::Empty,
-        }
+            '-' => Piece::Empty,
+            _ => {
+                return Err(BoardError::new(
+                    ErrorKind::InvalidInput,
+                    "Illegal Character for piece",
+                ))
+            }
+        })
     }
 }
 

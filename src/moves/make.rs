@@ -2,7 +2,7 @@ use crate::{
     error::{BoardError, ErrorKind},
     moves::{Move, MoveState},
     piece::Piece,
-    position::Square,
+    square::Square,
     Board,
 };
 
@@ -23,7 +23,7 @@ impl Board {
         if piece == Piece::King(piece.is_white())
             && mv.dest.index().abs_diff(mv.origin.index()) == 2
             && (self.is_attacked(
-                Square::try_from(mv.dest.index().max(mv.origin.index()) - 1).unwrap(),
+                Square::try_from(mv.dest.index().max(mv.origin.index()) - 1)?,
                 !piece.is_white(),
             ) || self.is_attacked(mv.origin, !piece.is_white()))
         {
@@ -55,17 +55,17 @@ impl Board {
         self.move_piece(piece, mv.origin.index(), mv.dest.index());
         self.move_piece(Piece::Empty, mv.dest.index(), mv.origin.index());
         // Clearing Capture
-        self.pieces[capture.index()] &= !(1 << mv.dest.index());
+        self.position[capture] &= !(1 << mv.dest.index());
 
         if mv.promotion != Piece::Empty {
-            self.pieces[piece.index()] &= !(1 << mv.dest.index());
-            self.pieces[mv.promotion.index()] |= 1 << mv.dest.index();
+            self.position[piece] &= !(1 << mv.dest.index());
+            self.position[mv.promotion] |= 1 << mv.dest.index();
         }
 
         if is_ep {
             let index = (mv.origin.index() & !0b111) | (mv.dest.index() & 0b111);
-            self.pieces[capture.index()] &= !(1 << index);
-            self.pieces[Piece::Empty.index()] |= 1 << index;
+            self.position[capture] &= !(1 << index);
+            self.position[Piece::Empty] |= 1 << index;
         }
 
         let is_castle = Piece::King(piece.is_white()) == piece
@@ -105,8 +105,9 @@ impl Board {
 
             // Check if double push to set ep_target
             if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
-                self.ep_target =
-                    Some(Square::try_from(mv.origin.index().max(mv.dest.index()) - 8).unwrap());
+                self.ep_target = Some(Square::try_from(
+                    mv.origin.index().max(mv.dest.index()) - 8,
+                )?);
             } else {
                 self.ep_target = None;
             }
@@ -139,8 +140,10 @@ impl Board {
         self.increment_hash(move_state, piece);
 
         // check if king is in check
+        // What if there is no king on the board? Will that case ever arise?
+        // Leaving unwrap to panic if this ever happens
         let king: Square = (63
-            - self.pieces[Piece::King(piece.is_white()).index()].leading_zeros() as u8)
+            - self.position[Piece::King(piece.is_white())].leading_zeros() as u8)
             .try_into()
             .unwrap();
         if self.is_attacked(king, !piece.is_white()) {
@@ -169,7 +172,7 @@ impl Board {
         self.move_piece(Piece::Empty, ms.mv.origin.index(), ms.mv.dest.index());
 
         if ms.mv.promotion != Piece::Empty {
-            self.pieces[ms.mv.promotion.index()] &= !(1 << ms.mv.dest.index());
+            self.position[ms.mv.promotion] &= !(1 << ms.mv.dest.index());
         }
 
         let is_ep = if let Some(e) = ms.ep_target {
@@ -180,11 +183,11 @@ impl Board {
 
         if is_ep {
             let bit_index = ((ms.mv.origin.index() >> 3) << 3) | (ms.mv.dest.index() & 0b111);
-            self.pieces[ms.capture.index()] |= 1u64 << bit_index;
-            self.pieces[Piece::Empty.index()] &= !(1u64 << bit_index);
+            self.position[ms.capture] |= 1u64 << bit_index;
+            self.position[Piece::Empty] &= !(1u64 << bit_index);
         } else {
-            self.pieces[Piece::Empty.index()] &= !(1 << ms.mv.dest.index());
-            self.pieces[ms.capture.index()] |= 1 << ms.mv.dest.index();
+            self.position[Piece::Empty] &= !(1 << ms.mv.dest.index());
+            self.position[ms.capture] |= 1 << ms.mv.dest.index();
         };
 
         let is_castle = Piece::King(piece.is_white()) == piece
@@ -216,8 +219,8 @@ impl Board {
     fn move_piece(&mut self, piece: Piece, from: u8, to: u8) {
         let origin_map = 1 << from;
         let dest_map = 1 << to;
-        self.pieces[piece.index()] &= !origin_map;
-        self.pieces[piece.index()] |= dest_map;
+        self.position[piece] &= !origin_map;
+        self.position[piece] |= dest_map;
     }
 }
 
@@ -231,7 +234,7 @@ mod tests {
         fn is_valid(&self) -> bool {
             let white_pieces = self.team_pieces(true);
             let black_pieces = self.team_pieces(false);
-            let empty = self.pieces[Piece::Empty.index()];
+            let empty = self.position[Piece::Empty];
             return white_pieces & black_pieces == 0
                 && white_pieces & empty == 0
                 && black_pieces & empty == 0

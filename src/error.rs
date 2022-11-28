@@ -1,4 +1,8 @@
-use std::fmt;
+use std::{
+    char::ParseCharError,
+    fmt,
+    num::{self, ParseIntError},
+};
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
@@ -25,6 +29,24 @@ impl fmt::Display for BoardError {
         }
 
         write!(f, "{}", err)
+    }
+}
+
+impl From<num::TryFromIntError> for BoardError {
+    fn from(_: num::TryFromIntError) -> Self {
+        BoardError::new(ErrorKind::OutOfBounds, "Invalid integer conversion")
+    }
+}
+
+impl From<ParseIntError> for BoardError {
+    fn from(_: ParseIntError) -> Self {
+        BoardError::new(ErrorKind::InvalidInput, "Unable to parse integer")
+    }
+}
+
+impl From<ParseCharError> for BoardError {
+    fn from(_: ParseCharError) -> Self {
+        BoardError::new(ErrorKind::InvalidInput, "Unable to parse char")
     }
 }
 
