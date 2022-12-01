@@ -3,8 +3,10 @@ use crate::{
     moves::{Move, MoveState},
     piece::Piece,
     square::Square,
-    Board,
+    Board, hash::{hash_index, MAX_PIECE_INDEX},
 };
+
+use super::generate;
 
 impl Board {
     pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
@@ -70,19 +72,19 @@ impl Board {
 
         let is_castle = Piece::King(piece.is_white()) == piece
             && mv.dest.index().abs_diff(mv.origin.index()) == 2;
-        let is_ks_castle: bool = is_castle && mv.dest.index() > mv.origin.index();
+        let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
         if is_castle {
             let rook = Piece::Rook(piece.is_white());
             let r_origin = if is_ks_castle {
-                mv.origin.index() | 0b111
-            } else {
                 mv.origin.index() & !0b111
+            } else {
+                mv.origin.index() | 0b111
             };
             let r_dest = if is_ks_castle {
-                r_origin - 2
+                r_origin as i32 + 2 * generate::LEFT
             } else {
-                r_origin + 3
-            };
+                r_origin as i32 + 3 * generate::RIGHT
+            } as u8;
             self.move_piece(rook, r_origin, r_dest);
             self.move_piece(Piece::Empty, r_dest, r_origin);
         }
@@ -116,24 +118,24 @@ impl Board {
         }
 
         // Update castling
-        if piece == Piece::King(piece.is_white()) {
-            let ci_offset = if piece.is_white() { 0 } else { 2 };
+        if let Piece::King(is_white) = piece {
+            let ci_offset = if is_white { 0 } else { 2 };
             self.castle[0 | ci_offset] = false;
             self.castle[1 | ci_offset] = false;
         }
         if let Piece::Rook(is_white) = piece {
             let ci_offset = if is_white { 0 } else { 2 };
-            if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0 {
+            if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
                 self.castle[1 | ci_offset] = false;
-            } else if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
+            } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0 {
                 self.castle[0 | ci_offset] = false;
             }
         }
         if let Piece::Rook(is_white) = capture {
             let ci_offset = if capture.is_white() { 0 } else { 2 };
-            if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
+            if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
                 self.castle[1 | ci_offset] = false;
-            } else if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
+            } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
                 self.castle[0 | ci_offset] = false;
             }
         }
@@ -192,19 +194,19 @@ impl Board {
 
         let is_castle = Piece::King(piece.is_white()) == piece
             && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
-        let is_ks_castle: bool = is_castle && ms.mv.dest.index() > ms.mv.origin.index();
+        let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
         if is_castle {
             let rook = Piece::Rook(piece.is_white());
             let r_origin = if is_ks_castle {
-                ms.mv.origin.index() | 0b111
-            } else {
                 ms.mv.origin.index() & !0b111
+            } else {
+                ms.mv.origin.index() | 0b111
             };
             let r_dest = if is_ks_castle {
-                r_origin - 2
+                r_origin as i32 + 2 * generate::LEFT
             } else {
-                r_origin + 3
-            };
+                r_origin as i32 + 3 * generate::RIGHT
+            } as u8;
             self.move_piece(rook, r_dest, r_origin);
             self.move_piece(Piece::Empty, r_origin, r_dest);
         }
@@ -221,6 +223,67 @@ impl Board {
         let dest_map = 1 << to;
         self.position[piece] &= !origin_map;
         self.position[piece] |= dest_map;
+    }
+
+    fn increment_hash(&mut self, ms: MoveState, p: Piece) {
+        self.hash ^= self.hash_keys[hash_index(p, ms.mv.origin.index().into())];
+        if ms.mv.promotion == Piece::Empty {
+            self.hash ^= self.hash_keys[hash_index(p, ms.mv.dest.index().into())];
+        } else {
+            self.hash ^= self.hash_keys[hash_index(ms.mv.promotion, ms.mv.dest.index().into())];
+        }
+
+        let is_ep = if let Some(pos) = ms.ep_target {
+            pos == ms.mv.dest && p == Piece::Pawn(p.is_white())
+        } else {
+            false
+        };
+
+        if ms.capture != Piece::Empty && !is_ep {
+            self.hash ^= self.hash_keys[hash_index(ms.capture, ms.mv.dest.index().into())];
+        }
+        if is_ep {
+            let index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
+            self.hash ^= self.hash_keys[hash_index(ms.capture, index.into())];
+        }
+
+        let is_castle = Piece::King(p.is_white()) == p
+            && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
+        let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
+        if is_castle {
+            let rook = Piece::Rook(p.is_white());
+            let r_origin = if is_ks_castle {
+                ms.mv.origin.index() & !0b111
+            } else {
+                ms.mv.origin.index() | 0b111
+            };
+            let r_dest = if is_ks_castle {
+                r_origin + 2
+            } else {
+                r_origin - 3
+            };
+            self.hash ^= self.hash_keys[hash_index(rook, r_origin.into())];
+            self.hash ^= self.hash_keys[hash_index(rook, r_dest.into())];
+        }
+
+        let mut next_index = MAX_PIECE_INDEX + 1;
+        self.hash ^= self.hash_keys[next_index];
+        next_index += 1;
+
+        for (i, c) in self.castle.iter().enumerate() {
+            if *c != ms.castle[i] {
+                self.hash ^= self.hash_keys[next_index];
+            }
+            next_index += 1;
+        }
+        if let Some(pos) = ms.ep_target {
+            let col = (pos.index() & 0b111) as usize;
+            self.hash ^= self.hash_keys[next_index + col - 1];
+        }
+        if let Some(pos) = self.ep_target {
+            let col = (pos.index() & 0b111) as usize;
+            self.hash ^= self.hash_keys[next_index + col - 1]
+        }
     }
 }
 

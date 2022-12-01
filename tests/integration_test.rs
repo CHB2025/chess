@@ -97,7 +97,7 @@ fn perft_positions() -> Vec<PerftResult> {
 fn test_perft() {
     for test in &perft_positions() {
         let mut b = Board::from_fen(&test.fen).unwrap();
-        for (i, depth) in test.depth[0..3].iter().enumerate() {
+        for (i, depth) in test.depth.iter().enumerate() {
             println!("Testing {} to depth {}", test.name, depth);
             assert_eq!(test.nodes[i], perft(&mut b, *depth));
         }

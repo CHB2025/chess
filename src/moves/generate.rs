@@ -2,13 +2,13 @@ use std::vec;
 
 use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board};
 
-const UP: isize = -8;
-const DOWN: isize = 8;
-const LEFT: isize = -1;
-const RIGHT: isize = 1;
+pub const UP: i32 = -8;
+pub const DOWN: i32 = 8;
+pub const LEFT: i32 = 1;
+pub const RIGHT: i32 = -1;
 const ALL: u64 = u64::MAX;
-const NOT_A_FILE: u64 = 0xfefefefefefefefe;
-const NOT_H_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
+const NOT_H_FILE: u64 = 0xfefefefefefefefe;
+const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 
 impl Board {
     pub fn team_pieces(&self, white: bool) -> u64 {
@@ -30,11 +30,11 @@ impl Board {
 
     pub fn pseudolegal_moves(&self, for_white: bool) -> Vec<Move> {
         let mut mvs = self.pawn_moves(for_white);
-        mvs.append(&mut self.king_moves(for_white));
-        mvs.append(&mut self.queen_moves(for_white));
-        mvs.append(&mut self.bishop_moves(for_white));
         mvs.append(&mut self.knight_moves(for_white));
+        mvs.append(&mut self.bishop_moves(for_white));
         mvs.append(&mut self.rook_moves(for_white));
+        mvs.append(&mut self.queen_moves(for_white));
+        mvs.append(&mut self.king_moves(for_white));
         return mvs;
     }
 
@@ -157,13 +157,13 @@ impl Board {
         }
 
         let index_offset = if for_white { 0 } else { 2 };
-        let ks_filter = 0b01100000 << if for_white { 56 } else { 0 };
-        let qs_filter = 0b00001110 << if for_white { 56 } else { 0 };
+        let ks_filter = 0b00000110 << if for_white { 56 } else { 0 };
+        let qs_filter = 0b01110000 << if for_white { 56 } else { 0 };
 
         if self.castle[0 | index_offset] && f & ks_filter == ks_filter {
             // King Side Castle
             let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Square = ((origin.index() as isize + 2 * RIGHT) as u8)
+            let dest: Square = ((origin.index() as i32 + 2 * RIGHT) as u8)
                 .try_into()
                 .unwrap();
             mvs.push(Move {
@@ -175,7 +175,7 @@ impl Board {
         if self.castle[1 | index_offset] && f & qs_filter == qs_filter {
             // Queen Side Castle
             let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Square = ((origin.index() as isize + 2 * LEFT) as u8)
+            let dest: Square = ((origin.index() as i32 + 2 * LEFT) as u8)
                 .try_into()
                 .unwrap();
             mvs.push(Move {
@@ -253,8 +253,8 @@ impl Board {
         let f = self.position[Piece::Empty];
         let o = self.team_pieces(!for_white);
 
-        let not_ab = 0xfcfcfcfcfcfcfcfc;
-        let not_gh = 0x3f3f3f3f3f3f3f3f;
+        let not_gh = 0xfcfcfcfcfcfcfcfc;
+        let not_ab = 0x3f3f3f3f3f3f3f3f;
 
         let dirs = [
             (UP + UP + RIGHT, NOT_A_FILE),
@@ -275,7 +275,7 @@ impl Board {
     }
 }
 
-fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: isize, single: bool) -> Vec<Move> {
+fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: bool) -> Vec<Move> {
     let mut mv = if dir.is_positive() {
         initial << dir
     } else {
@@ -289,7 +289,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: isize, single: b
     while (end > 0 || attacks > 0) && (!single || mul == 1) {
         while end.leading_zeros() != u64::BITS {
             let dest: Square = (63 - end.leading_zeros() as u8).try_into().unwrap();
-            let origin: Square = ((dest.index() as isize - dir * mul) as u8)
+            let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
                 .try_into()
                 .unwrap();
             response.push(Move {
@@ -302,7 +302,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: isize, single: b
         }
         while attacks.leading_zeros() != u64::BITS {
             let dest: Square = (63 - attacks.leading_zeros() as u8).try_into().unwrap();
-            let origin: Square = ((dest.index() as isize - dir * mul) as u8)
+            let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
                 .try_into()
                 .unwrap();
             response.push(Move {
@@ -324,7 +324,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: isize, single: b
     return response;
 }
 
-fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: isize) -> Vec<Move> {
+fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> {
     let mut end = if dir.is_positive() {
         initial << dir
     } else {
@@ -336,7 +336,7 @@ fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: isize) -> Vec<Move
     while end.leading_zeros() != u64::BITS {
         let dest: u8 = 63 - end.leading_zeros() as u8;
         end = end & !(1 << dest);
-        let origin = (dest as isize - dir) as u8;
+        let origin = (dest as i32 - dir) as u8;
         let promotions = if dest >> 3 == 7 || dest >> 3 == 0 {
             vec![
                 Piece::Queen(dir.is_negative()),

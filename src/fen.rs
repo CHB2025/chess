@@ -11,7 +11,7 @@ impl Board {
 
         for rank in 0..8 {
             let mut empty_squares = 0;
-            for p in &pw_rep[(rank << 3)..((rank + 1) << 3)] {
+            for p in pw_rep[(rank << 3)..((rank + 1) << 3)].into_iter().rev() {
                 if p == &Piece::Empty {
                     empty_squares += 1;
                     continue;
@@ -90,7 +90,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let b = sections.next().ok_or_else(short_err)?;
     for (y, row) in b.split('/').enumerate() {
         let mut offset: usize = 0;
-        for (x, symbol) in row.chars().enumerate() {
+        for (x, symbol) in row.chars().rev().enumerate() {
             if symbol.is_numeric() {
                 offset += symbol.to_string().parse::<usize>()? - 1;
                 continue;

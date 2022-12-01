@@ -5,6 +5,8 @@ use piece::Piece;
 use position::Position;
 use square::Square;
 
+use self::position::default_position;
+
 pub mod error;
 pub mod fen;
 pub mod hash;
@@ -38,7 +40,7 @@ impl fmt::Debug for Board {
         let mut output = String::new();
         for row in 0..8 {
             output.push('|');
-            for p in &board[(row << 3)..((row + 1) << 3)] {
+            for p in board[(row << 3)..((row + 1) << 3)].iter().rev() {
                 output.push_str(&format!(" {p} |"));
             }
             output.push('\n')
@@ -52,7 +54,25 @@ impl IntoIterator for &Board {
     type IntoIter = std::array::IntoIter<Self::Item, 64>;
 
     fn into_iter(self) -> Self::IntoIter {
-        return self.to_board_representation().into_iter();
+        self.to_board_representation().into_iter()
+    }
+}
+
+impl std::default::Default for Board {
+    fn default() -> Self {
+        let mut response = Self {
+            position: default_position(),
+            white_to_move: true,
+            castle: [true; 4],
+            ep_target: None,
+            halfmove: 0,
+            fullmove: 1, // This maybe should be 1?
+            move_history: Vec::new(),
+            hash: 0,
+            hash_keys: [0; 781],
+        };
+        response.initialize_hash();
+        response
     }
 }
 
@@ -64,11 +84,11 @@ impl Board {
             let mut v = self.position[index];
             while v.leading_zeros() != u64::BITS {
                 let first_bit = 63 - v.leading_zeros();
-                v = v & !(1 << first_bit);
+                v &= !(1 << first_bit);
                 board[first_bit as usize] = (index as u8).try_into().unwrap();
             }
         }
-        return board;
+        board
     }
 
     pub fn piece_at(&self, index: Square) -> Piece {
@@ -82,11 +102,21 @@ impl Board {
     }
 
     pub fn new() -> Self {
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
-        return fen::create_board(&fen).unwrap();
+        Self::default()
     }
 
     pub fn is_white_to_move(&self) -> bool {
-        return self.white_to_move;
+        self.white_to_move
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Board;
+
+    #[test]
+    fn test_default() {
+        let game = Board::default();
+        assert_eq!(game.to_fen(), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
 }

@@ -9,7 +9,7 @@ impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let col = self.0 & 0b111;
         let row = self.0 >> 3;
-        write!(f, "{}{}", char::from(b'a' + col), 8 - row)
+        write!(f, "{}{}", char::from(b'h' - col), 8 - row)
     }
 }
 
@@ -24,7 +24,7 @@ impl str::FromStr for Square {
             ));
         }
         let p_bytes = s.as_bytes();
-        return Ok(Square((p_bytes[0] - b'a') + ((b'8' - p_bytes[1]) << 3)));
+        return Ok(Square((b'h' - p_bytes[0]) + ((b'8' - p_bytes[1]) << 3)));
     }
 }
 
@@ -90,7 +90,7 @@ fn is_valid_position(position: &str) -> bool {
         return false;
     }
 
-    return b'a' <= p_bytes[0] && p_bytes[0] <= b'h' && b'0' <= p_bytes[1] && p_bytes[1] <= b'9';
+    return b'a' <= p_bytes[0] && p_bytes[0] <= b'h' && b'0' <= p_bytes[1] && p_bytes[1] <= b'8';
 }
 
 #[cfg(test)]
@@ -101,15 +101,15 @@ mod tests {
 
     #[test]
     fn test_position_from_bit_index() {
-        assert_eq!("a1", Square(56).to_string());
-        assert_eq!("d4", Square(35).to_string());
+        assert_eq!("a1", Square(63).to_string());
+        assert_eq!("d4", Square(36).to_string());
         assert!(Square::try_from(68 as u8).is_err());
     }
 
     #[test]
     fn test_bit_index_from_position() {
-        assert_eq!(Square(0), "a8".parse().unwrap());
-        assert_eq!(Square(35), "d4".parse().unwrap());
+        assert_eq!(Square(63), "a1".parse().unwrap());
+        assert_eq!(Square(36), "d4".parse().unwrap());
         assert!("j3".parse::<Square>().is_err());
     }
 
