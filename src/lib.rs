@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, default};
 
 use moves::MoveState;
 use piece::Piece;
@@ -39,11 +39,14 @@ impl fmt::Debug for Board {
         let board = self.to_board_representation();
         let mut output = String::new();
         for row in 0..8 {
-            output.push('|');
+            output.push_str(&format!("{}|", 8 - row));
             for p in board[(row << 3)..((row + 1) << 3)].iter().rev() {
                 output.push_str(&format!(" {p} |"));
             }
             output.push('\n')
+        }
+        for col in 0..8 {
+            output.push_str(&format!("   {}", char::from(b'a' + col)));
         }
         write!(f, "{output}")
     }
@@ -58,7 +61,7 @@ impl IntoIterator for &Board {
     }
 }
 
-impl std::default::Default for Board {
+impl default::Default for Board {
     fn default() -> Self {
         let mut response = Self {
             position: default_position(),
