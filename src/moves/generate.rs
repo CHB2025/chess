@@ -22,38 +22,42 @@ impl Board {
     }
 
     pub fn pseudolegal_moves(&self, for_white: bool) -> Vec<Move> {
-        let mut mvs = self.pawn_moves(for_white);
-        mvs.append(&mut self.knight_moves(for_white));
-        mvs.append(&mut self.bishop_moves(for_white));
-        mvs.append(&mut self.rook_moves(for_white));
-        mvs.append(&mut self.queen_moves(for_white));
-        mvs.append(&mut self.king_moves(for_white));
+        let mut mvs: Vec<Move> = Vec::new();
+        self.pawn_moves(&mut mvs, for_white);
+        self.knight_moves(&mut mvs, for_white);
+        self.bishop_moves(&mut mvs, for_white);
+        self.rook_moves(&mut mvs, for_white);
+        self.queen_moves(&mut mvs, for_white);
+        self.king_moves(&mut mvs, for_white);
         mvs
     }
 
     pub fn attacks(&self, for_white: bool) -> Vec<Move> {
-        let mut mvs = self.king_moves(for_white);
-        mvs.append(&mut self.queen_moves(for_white));
-        mvs.append(&mut self.bishop_moves(for_white));
-        mvs.append(&mut self.knight_moves(for_white));
-        mvs.append(&mut self.rook_moves(for_white));
+        let mut mvs: Vec<Move> = Vec::new();
+        self.king_moves(&mut mvs, for_white);
+        self.queen_moves(&mut mvs, for_white);
+        self.bishop_moves(&mut mvs, for_white);
+        self.knight_moves(&mut mvs, for_white);
+        self.rook_moves(&mut mvs, for_white);
 
         // Pawns have different attacks then movement
         let initial = self.position[Piece::Pawn(for_white)];
         let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
         let free_space = !self.position.team_pieces(for_white); // Look at any empty square or opposing pieces
-        mvs.append(&mut pawn_moves(
+        pawn_moves(
+            &mut mvs,
             initial,
             free_space & NOT_H_FILE,
             left_attack,
-        ));
+        );
 
         let right_attack = if for_white { UP + RIGHT } else { DOWN + RIGHT };
-        mvs.append(&mut pawn_moves(
+        pawn_moves(
+            &mut mvs,
             initial,
             free_space & NOT_A_FILE,
             right_attack,
-        ));
+        );
         mvs
     }
 
@@ -75,26 +79,27 @@ impl Board {
     }
 
     pub fn moves_by_piece(&self, piece: Piece) -> Vec<Move> {
+        let mut mvs: Vec<Move> = Vec::new();
         match piece {
-            Piece::King(is_white) => self.king_moves(is_white),
-            Piece::Queen(is_white) => self.queen_moves(is_white),
-            Piece::Bishop(is_white) => self.bishop_moves(is_white),
-            Piece::Knight(is_white) => self.knight_moves(is_white),
-            Piece::Rook(is_white) => self.rook_moves(is_white),
-            Piece::Pawn(is_white) => self.pawn_moves(is_white),
-            Piece::Empty => vec![],
-        }
+            Piece::King(is_white) => self.king_moves(&mut mvs, is_white),
+            Piece::Queen(is_white) => self.queen_moves(&mut mvs, is_white),
+            Piece::Bishop(is_white) => self.bishop_moves(&mut mvs, is_white),
+            Piece::Knight(is_white) => self.knight_moves(&mut mvs, is_white),
+            Piece::Rook(is_white) => self.rook_moves(&mut mvs, is_white),
+            Piece::Pawn(is_white) => self.pawn_moves(&mut mvs, is_white),
+            Piece::Empty => ()
+        };
+        mvs
     }
 
-    fn pawn_moves(&self, for_white: bool) -> Vec<Move> {
-        let mut moves: Vec<Move> = vec![];
+    fn pawn_moves(&self, moves: &mut Vec<Move>, for_white: bool) {
 
         let piece = Piece::Pawn(for_white);
         let dir = if for_white { UP } else { DOWN };
         let initial = self.position[piece];
         let mut free_space = self.position[Piece::Empty];
 
-        moves.append(&mut pawn_moves(initial, free_space, dir));
+        pawn_moves(moves, initial, free_space, dir);
 
         // Checks that space between double move is clear
         free_space &= if for_white {
@@ -103,7 +108,7 @@ impl Board {
             (free_space << 8) & 0xff000000
         };
 
-        moves.append(&mut pawn_moves(initial, free_space, dir * 2));
+        pawn_moves(moves, initial, free_space, dir * 2);
 
         let ep_map = if let Some(p) = self.ep_target {
             1 << p.index()
@@ -112,23 +117,23 @@ impl Board {
         };
         let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
         free_space = self.position.team_pieces(!for_white) | ep_map;
-        moves.append(&mut pawn_moves(
+        pawn_moves(
+            moves,
             initial,
             free_space & NOT_H_FILE,
             left_attack,
-        ));
+        );
 
         let right_attack = if for_white { UP + RIGHT } else { DOWN + RIGHT };
-        moves.append(&mut pawn_moves(
+        pawn_moves(
+            moves,
             initial,
             free_space & NOT_A_FILE,
             right_attack,
-        ));
-
-        moves
+        );
     }
 
-    fn king_moves(&self, for_white: bool) -> Vec<Move> {
+    fn king_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
         let i = self.position[Piece::King(for_white)];
         let f = self.position[Piece::Empty];
         let o = self.position.team_pieces(!for_white);
@@ -144,9 +149,8 @@ impl Board {
             (UP + LEFT, NOT_H_FILE),
         ];
 
-        let mut mvs: Vec<Move> = vec![];
         for (dir, filter) in dirs {
-            mvs.append(&mut moves(i, f & filter, o & filter, dir, true));
+            moves(mvs, i, f & filter, o & filter, dir, true);
         }
 
         let index_offset = if for_white { 0 } else { 2 };
@@ -177,10 +181,9 @@ impl Board {
                 promotion: Piece::Empty,
             })
         }
-        mvs
     }
 
-    fn queen_moves(&self, for_white: bool) -> Vec<Move> {
+    fn queen_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
         let i = self.position[Piece::Queen(for_white)];
         let f = self.position[Piece::Empty];
         let o = self.position.team_pieces(!for_white);
@@ -196,14 +199,12 @@ impl Board {
             (UP + LEFT, NOT_H_FILE),
         ];
 
-        let mut mvs: Vec<Move> = vec![];
         for (dir, filter) in dirs {
-            mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
+            moves(mvs, i, f & filter, o & filter, dir, false);
         }
-        mvs
     }
 
-    fn bishop_moves(&self, for_white: bool) -> Vec<Move> {
+    fn bishop_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
         let i = self.position[Piece::Bishop(for_white)];
         let f = self.position[Piece::Empty];
         let o = self.position.team_pieces(!for_white);
@@ -215,14 +216,12 @@ impl Board {
             (UP + LEFT, NOT_H_FILE),
         ];
 
-        let mut mvs: Vec<Move> = vec![];
         for (dir, filter) in dirs {
-            mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
+            moves(mvs, i, f & filter, o & filter, dir, false);
         }
-        mvs
     }
 
-    fn rook_moves(&self, for_white: bool) -> Vec<Move> {
+    fn rook_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
         let i = self.position[Piece::Rook(for_white)];
         let f = self.position[Piece::Empty];
         let o = self.position.team_pieces(!for_white);
@@ -234,14 +233,12 @@ impl Board {
             (DOWN, ALL),
         ];
 
-        let mut mvs: Vec<Move> = vec![];
         for (dir, filter) in dirs {
-            mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
+            moves(mvs, i, f & filter, o & filter, dir, false);
         }
-        mvs
     }
 
-    fn knight_moves(&self, for_white: bool) -> Vec<Move> {
+    fn knight_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
         let i = self.position[Piece::Knight(for_white)];
         let f = self.position[Piece::Empty];
         let o = self.position.team_pieces(!for_white);
@@ -260,15 +257,13 @@ impl Board {
             (UP + UP + LEFT, NOT_H_FILE),
         ];
 
-        let mut mvs: Vec<Move> = vec![];
         for (dir, filter) in dirs {
-            mvs.append(&mut moves(i, f & filter, o & filter, dir, true));
+            moves(mvs, i, f & filter, o & filter, dir, true);
         }
-        mvs
     }
 }
 
-fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: bool) -> Vec<Move> {
+fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: bool) {
     let mut mv = if dir.is_positive() {
         initial << dir
     } else {
@@ -278,14 +273,13 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
     let mut attacks = mv & cap;
 
     let mut mul = 1;
-    let mut response: Vec<Move> = vec![];
     while (end > 0 || attacks > 0) && (!single || mul == 1) {
         while end.leading_zeros() != u64::BITS {
             let dest: Square = (63 - end.leading_zeros() as u8).try_into().unwrap();
             let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
                 .try_into()
                 .unwrap();
-            response.push(Move {
+            mvs.push(Move {
                 origin,
                 dest,
                 promotion: Piece::Empty,
@@ -298,7 +292,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
             let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
                 .try_into()
                 .unwrap();
-            response.push(Move {
+            mvs.push(Move {
                 origin,
                 dest,
                 promotion: Piece::Empty,
@@ -314,17 +308,14 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
         end = mv & free;
         attacks = mv & cap;
     }
-    response
 }
 
-fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> {
+fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, dir: i32) {
     let mut end = if dir.is_positive() {
         initial << dir
     } else {
         initial >> dir.abs()
     } & legal_spaces;
-
-    let mut moves: Vec<Move> = vec![];
 
     while end.leading_zeros() != u64::BITS {
         let dest: u8 = 63 - end.leading_zeros() as u8;
@@ -342,14 +333,13 @@ fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> 
         };
 
         for promotion in promotions {
-            moves.push(Move {
+            mvs.push(Move {
                 origin: origin.try_into().unwrap(),
                 dest: dest.try_into().unwrap(),
                 promotion,
             })
         }
     }
-    moves
 }
 
 #[cfg(test)]
