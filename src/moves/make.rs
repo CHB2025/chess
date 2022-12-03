@@ -1,16 +1,17 @@
 use crate::{
     error::{BoardError, ErrorKind},
+    hash::{hash_index, MAX_PIECE_INDEX},
     moves::{Move, MoveState},
     piece::Piece,
     square::Square,
-    Board, hash::{hash_index, MAX_PIECE_INDEX},
+    Board,
 };
 
 use super::generate;
 
 impl Board {
     pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
-        let piece = self.piece_at(mv.origin);
+        let piece = self[mv.origin];
         if piece.is_white() != self.white_to_move {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
@@ -45,36 +46,29 @@ impl Board {
         let capture = if is_ep {
             Piece::Pawn(!self.white_to_move)
         } else {
-            self.piece_at(mv.dest)
+            self[mv.dest]
         };
         let move_state = MoveState {
             mv,
             capture,
-            castle: self.castle.clone(),
+            castle: self.castle,
             halfmove: self.halfmove,
-            ep_target: self.ep_target.clone(),
+            ep_target: self.ep_target,
         };
-        self.move_piece(piece, mv.origin.index(), mv.dest.index());
-        self.move_piece(Piece::Empty, mv.dest.index(), mv.origin.index());
-        // Clearing Capture
-        self.position[capture] &= !(1 << mv.dest.index());
-
+        self.position.r#move(mv.origin, mv.dest);
         if mv.promotion != Piece::Empty {
-            self.position[piece] &= !(1 << mv.dest.index());
-            self.position[mv.promotion] |= 1 << mv.dest.index();
+            self.position.put(mv.promotion, mv.dest);
         }
 
         if is_ep {
             let index = (mv.origin.index() & !0b111) | (mv.dest.index() & 0b111);
-            self.position[capture] &= !(1 << index);
-            self.position[Piece::Empty] |= 1 << index;
+            self.position.clear(index.try_into().unwrap());
         }
 
         let is_castle = Piece::King(piece.is_white()) == piece
             && mv.dest.index().abs_diff(mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
         if is_castle {
-            let rook = Piece::Rook(piece.is_white());
             let r_origin = if is_ks_castle {
                 mv.origin.index() & !0b111
             } else {
@@ -85,8 +79,8 @@ impl Board {
             } else {
                 r_origin as i32 + 3 * generate::RIGHT
             } as u8;
-            self.move_piece(rook, r_origin, r_dest);
-            self.move_piece(Piece::Empty, r_dest, r_origin);
+            self.position
+                .r#move(r_origin.try_into().unwrap(), r_dest.try_into().unwrap());
         }
 
         // Updating metadata
@@ -107,9 +101,8 @@ impl Board {
 
             // Check if double push to set ep_target
             if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
-                self.ep_target = Some(Square::try_from(
-                    mv.origin.index().max(mv.dest.index()) - 8,
-                )?);
+                self.ep_target =
+                    Some(Square::try_from(mv.origin.index().max(mv.dest.index()) - 8).unwrap());
             } else {
                 self.ep_target = None;
             }
@@ -120,7 +113,7 @@ impl Board {
         // Update castling
         if let Piece::King(is_white) = piece {
             let ci_offset = if is_white { 0 } else { 2 };
-            self.castle[0 | ci_offset] = false;
+            self.castle[ci_offset] = false;
             self.castle[1 | ci_offset] = false;
         }
         if let Piece::Rook(is_white) = piece {
@@ -128,7 +121,7 @@ impl Board {
             if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
                 self.castle[1 | ci_offset] = false;
             } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0 {
-                self.castle[0 | ci_offset] = false;
+                self.castle[ci_offset] = false;
             }
         }
         if let Piece::Rook(is_white) = capture {
@@ -136,7 +129,7 @@ impl Board {
             if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
                 self.castle[1 | ci_offset] = false;
             } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
-                self.castle[0 | ci_offset] = false;
+                self.castle[ci_offset] = false;
             }
         }
         self.increment_hash(move_state, piece);
@@ -155,7 +148,7 @@ impl Board {
                 "Moving into check",
             ));
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn unmake(&mut self) {
@@ -164,18 +157,17 @@ impl Board {
             None => return,
         };
         let piece = if ms.mv.promotion == Piece::Empty {
-            self.piece_at(ms.mv.dest)
+            self[ms.mv.dest]
         } else {
             Piece::Pawn(ms.mv.promotion.is_white())
         };
         self.increment_hash(ms, piece);
-
-        self.move_piece(piece, ms.mv.dest.index(), ms.mv.origin.index());
-        self.move_piece(Piece::Empty, ms.mv.origin.index(), ms.mv.dest.index());
-
         if ms.mv.promotion != Piece::Empty {
-            self.position[ms.mv.promotion] &= !(1 << ms.mv.dest.index());
+            self.position.put(piece, ms.mv.dest);
         }
+        self.position.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
+
+        
 
         let is_ep = if let Some(e) = ms.ep_target {
             e.index() == ms.mv.dest.index() && piece == Piece::Pawn(!self.white_to_move)
@@ -185,30 +177,30 @@ impl Board {
 
         if is_ep {
             let bit_index = ((ms.mv.origin.index() >> 3) << 3) | (ms.mv.dest.index() & 0b111);
-            self.position[ms.capture] |= 1u64 << bit_index;
-            self.position[Piece::Empty] &= !(1u64 << bit_index);
-        } else {
-            self.position[Piece::Empty] &= !(1 << ms.mv.dest.index());
-            self.position[ms.capture] |= 1 << ms.mv.dest.index();
-        };
+            let sqr = Square::try_from(bit_index).expect("Invalid index for ep capture pawn");
+            self.position.put(ms.capture, sqr);
+            self.position.clear(ms.mv.dest);
+        }
 
         let is_castle = Piece::King(piece.is_white()) == piece
             && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
         if is_castle {
-            let rook = Piece::Rook(piece.is_white());
-            let r_origin = if is_ks_castle {
+            let r_origin: Square = if is_ks_castle {
                 ms.mv.origin.index() & !0b111
             } else {
                 ms.mv.origin.index() | 0b111
-            };
-            let r_dest = if is_ks_castle {
-                r_origin as i32 + 2 * generate::LEFT
+            }
+            .try_into()
+            .expect("Invalid index for castling rook");
+            let r_dest: Square = (if is_ks_castle {
+                r_origin.index() as i32 + 2 * generate::LEFT
             } else {
-                r_origin as i32 + 3 * generate::RIGHT
-            } as u8;
-            self.move_piece(rook, r_dest, r_origin);
-            self.move_piece(Piece::Empty, r_origin, r_dest);
+                r_origin.index() as i32 + 3 * generate::RIGHT
+            } as u8)
+                .try_into()
+                .expect("Invalid dest index for castling rook");
+            self.position.r#move(r_dest, r_origin);
         }
 
         // Resetting metadata
@@ -216,13 +208,6 @@ impl Board {
         self.castle = ms.castle;
         self.ep_target = ms.ep_target;
         self.halfmove = ms.halfmove;
-    }
-
-    fn move_piece(&mut self, piece: Piece, from: u8, to: u8) {
-        let origin_map = 1 << from;
-        let dest_map = 1 << to;
-        self.position[piece] &= !origin_map;
-        self.position[piece] |= dest_map;
     }
 
     fn increment_hash(&mut self, ms: MoveState, p: Piece) {
@@ -295,13 +280,13 @@ mod tests {
 
     impl Board {
         fn is_valid(&self) -> bool {
-            let white_pieces = self.team_pieces(true);
-            let black_pieces = self.team_pieces(false);
+            let white_pieces = self.position.team_pieces(true);
+            let black_pieces = self.position.team_pieces(false);
             let empty = self.position[Piece::Empty];
-            return white_pieces & black_pieces == 0
+            white_pieces & black_pieces == 0
                 && white_pieces & empty == 0
                 && black_pieces & empty == 0
-                && white_pieces | black_pieces | empty == u64::MAX;
+                && white_pieces | black_pieces | empty == u64::MAX
         }
     }
 

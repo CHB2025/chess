@@ -126,7 +126,7 @@ mod tests {
                 let p = Square(file + (rank << 3));
                 print!(" {p}({}) |", file + (rank << 3));
             }
-            println!("");
+            println!();
         }
     }
 }

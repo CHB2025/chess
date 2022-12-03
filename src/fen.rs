@@ -1,34 +1,15 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
+use crate::position::HybridPosition;
 use crate::{piece, piece::Piece, square::Square, Board};
 use regex::Regex;
 
 impl Board {
     pub fn to_fen(&self) -> String {
         let mut output = String::new();
-        let pw_rep = self.to_board_representation();
 
-        for rank in 0..8 {
-            let mut empty_squares = 0;
-            for p in pw_rep[(rank << 3)..((rank + 1) << 3)].into_iter().rev() {
-                if p == &Piece::Empty {
-                    empty_squares += 1;
-                    continue;
-                }
-                if empty_squares != 0 {
-                    output += empty_squares.to_string().as_str();
-                    empty_squares = 0;
-                }
-                output += p.to_string().as_str()
-            }
-            if empty_squares != 0 {
-                output += &format!("{}", empty_squares);
-            }
-            if rank != 7 {
-                output.push('/');
-            }
-        }
+        output += self.position.to_string().as_str();
 
         output += &format!(" {}", if self.white_to_move { "w" } else { "b" });
 
@@ -74,7 +55,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
 
     let mut board = Board {
-        position: [0, 0, 0, 0, 0, 0, u64::MAX, 0, 0, 0, 0, 0, 0, 0],
+        position: HybridPosition::empty(),
         white_to_move: true,
         castle: [false; 4],
         ep_target: None,
@@ -96,9 +77,8 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
                 continue;
             }
             let p: Piece = symbol.try_into()?;
-            let bit_index = (y << 3) + x + offset;
-            board.position[p] |= 1 << bit_index;
-            board.position[Piece::Empty] &= !(1 << bit_index);
+            let square: Square = ((y << 3) + x + offset).try_into()?;
+            board.position.put(p, square);
         }
     }
 

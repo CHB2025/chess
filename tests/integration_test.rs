@@ -1,4 +1,5 @@
 use std::collections::{hash_map::Entry, HashMap};
+use std::time::Instant;
 
 use chess_board::Board;
 
@@ -20,7 +21,7 @@ fn perft_with_map(
     }
     if let Entry::Occupied(e) = tps
         .entry(board.get_hash())
-        .or_insert(HashMap::new())
+        .or_default()
         .entry(depth)
     {
         return *e.get();
@@ -29,7 +30,7 @@ fn perft_with_map(
         .pseudolegal_moves(board.is_white_to_move())
         .into_iter()
         .filter_map(|m| {
-            if let Ok(_) = board.make(m) {
+            if board.make(m).is_ok() {
                 let t = Some(perft_with_map(board, depth - 1, tps));
                 board.unmake();
                 t
@@ -39,7 +40,7 @@ fn perft_with_map(
         })
         .sum();
     *tps.entry(board.get_hash())
-        .or_insert(HashMap::new())
+        .or_default()
         .entry(depth)
         .or_insert(value)
 }
@@ -102,4 +103,14 @@ fn test_perft() {
             assert_eq!(test.nodes[i], perft(&mut b, *depth));
         }
     }
+}
+
+#[test]
+fn test_kiwipete5() {
+    let positions = perft_positions();
+    let mut b = Board::from_fen(&positions[1].fen).unwrap();
+    let now = Instant::now();
+    perft(&mut b, 5);
+    let elapsed = now.elapsed();
+    println!("Running perft with depth 5 on kiwipete took {} seconds.", elapsed.as_secs());
 }

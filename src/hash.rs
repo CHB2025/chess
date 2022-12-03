@@ -47,7 +47,7 @@ impl Board {
 
 
     pub fn get_hash(&self) -> u64 {
-        return self.hash;
+        self.hash
     }
 }
 
@@ -55,7 +55,7 @@ pub(crate) fn hash_index(p: Piece, index: usize) -> usize {
     let p_index = p.index();
     // Because piece is only from 0-6 it needs to be first to minimize space needed
     //       Piece type               +1 if black               Location
-    return ((((p_index & 0b111) << 1) + !p.is_white() as usize) << 6) + index;
+    ((((p_index & 0b111) << 1) + !p.is_white() as usize) << 6) + index
 }
 
 #[cfg(test)]

@@ -11,13 +11,6 @@ const NOT_H_FILE: u64 = 0xfefefefefefefefe;
 const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 
 impl Board {
-    pub fn team_pieces(&self, white: bool) -> u64 {
-        let range = Piece::King(white).index()..=Piece::Pawn(white).index();
-        return self.position[range]
-            .iter()
-            .fold(0, |team, piece| (team | piece));
-    }
-
     pub fn is_attacked(&self, pos: Square, by_white: bool) -> bool {
         let mvs = self.attacks(by_white);
         for m in mvs {
@@ -25,7 +18,7 @@ impl Board {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     pub fn pseudolegal_moves(&self, for_white: bool) -> Vec<Move> {
@@ -35,7 +28,7 @@ impl Board {
         mvs.append(&mut self.rook_moves(for_white));
         mvs.append(&mut self.queen_moves(for_white));
         mvs.append(&mut self.king_moves(for_white));
-        return mvs;
+        mvs
     }
 
     pub fn attacks(&self, for_white: bool) -> Vec<Move> {
@@ -48,7 +41,7 @@ impl Board {
         // Pawns have different attacks then movement
         let initial = self.position[Piece::Pawn(for_white)];
         let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
-        let free_space = !self.team_pieces(for_white); // Look at any empty square or opposing pieces
+        let free_space = !self.position.team_pieces(for_white); // Look at any empty square or opposing pieces
         mvs.append(&mut pawn_moves(
             initial,
             free_space & NOT_H_FILE,
@@ -61,24 +54,24 @@ impl Board {
             free_space & NOT_A_FILE,
             right_attack,
         ));
-        return mvs;
+        mvs
     }
 
     pub fn legal_moves(&self, for_white: bool) -> Vec<Move> {
         // Should test performance of copying vs not.
         let mut game_copy = self.clone();
-        return self
+        self
             .pseudolegal_moves(for_white)
             .into_iter()
             .filter(|&m| {
-                if let Err(_) = game_copy.make(m) {
+                if game_copy.make(m).is_err() {
                     false
                 } else {
                     game_copy.unmake();
                     true
                 }
             })
-            .collect();
+            .collect()
     }
 
     pub fn moves_by_piece(&self, piece: Piece) -> Vec<Move> {
@@ -118,7 +111,7 @@ impl Board {
             0
         };
         let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
-        free_space = self.team_pieces(!for_white) | ep_map;
+        free_space = self.position.team_pieces(!for_white) | ep_map;
         moves.append(&mut pawn_moves(
             initial,
             free_space & NOT_H_FILE,
@@ -132,13 +125,13 @@ impl Board {
             right_attack,
         ));
 
-        return moves;
+        moves
     }
 
     fn king_moves(&self, for_white: bool) -> Vec<Move> {
         let i = self.position[Piece::King(for_white)];
         let f = self.position[Piece::Empty];
-        let o = self.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_white);
 
         let dirs = [
             (UP, ALL),
@@ -160,7 +153,7 @@ impl Board {
         let ks_filter = 0b00000110 << if for_white { 56 } else { 0 };
         let qs_filter = 0b01110000 << if for_white { 56 } else { 0 };
 
-        if self.castle[0 | index_offset] && f & ks_filter == ks_filter {
+        if self.castle[index_offset] && f & ks_filter == ks_filter {
             // King Side Castle
             let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
             let dest: Square = ((origin.index() as i32 + 2 * RIGHT) as u8)
@@ -184,13 +177,13 @@ impl Board {
                 promotion: Piece::Empty,
             })
         }
-        return mvs;
+        mvs
     }
 
     fn queen_moves(&self, for_white: bool) -> Vec<Move> {
         let i = self.position[Piece::Queen(for_white)];
         let f = self.position[Piece::Empty];
-        let o = self.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_white);
 
         let dirs = [
             (UP, ALL),
@@ -207,13 +200,13 @@ impl Board {
         for (dir, filter) in dirs {
             mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
         }
-        return mvs;
+        mvs
     }
 
     fn bishop_moves(&self, for_white: bool) -> Vec<Move> {
         let i = self.position[Piece::Bishop(for_white)];
         let f = self.position[Piece::Empty];
-        let o = self.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_white);
 
         let dirs = [
             (UP + RIGHT, NOT_A_FILE),
@@ -226,13 +219,13 @@ impl Board {
         for (dir, filter) in dirs {
             mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
         }
-        return mvs;
+        mvs
     }
 
     fn rook_moves(&self, for_white: bool) -> Vec<Move> {
         let i = self.position[Piece::Rook(for_white)];
         let f = self.position[Piece::Empty];
-        let o = self.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_white);
 
         let dirs = [
             (UP, ALL),
@@ -245,13 +238,13 @@ impl Board {
         for (dir, filter) in dirs {
             mvs.append(&mut moves(i, f & filter, o & filter, dir, false));
         }
-        return mvs;
+        mvs
     }
 
     fn knight_moves(&self, for_white: bool) -> Vec<Move> {
         let i = self.position[Piece::Knight(for_white)];
         let f = self.position[Piece::Empty];
-        let o = self.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_white);
 
         let not_gh = 0xfcfcfcfcfcfcfcfc;
         let not_ab = 0x3f3f3f3f3f3f3f3f;
@@ -271,7 +264,7 @@ impl Board {
         for (dir, filter) in dirs {
             mvs.append(&mut moves(i, f & filter, o & filter, dir, true));
         }
-        return mvs;
+        mvs
     }
 }
 
@@ -293,12 +286,12 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
                 .try_into()
                 .unwrap();
             response.push(Move {
-                origin: origin,
-                dest: dest,
+                origin,
+                dest,
                 promotion: Piece::Empty,
             });
 
-            end = end & !(1 << dest.index());
+            end &= !(1 << dest.index());
         }
         while attacks.leading_zeros() != u64::BITS {
             let dest: Square = (63 - attacks.leading_zeros() as u8).try_into().unwrap();
@@ -310,7 +303,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
                 dest,
                 promotion: Piece::Empty,
             });
-            attacks = attacks & !(1 << dest.index());
+            attacks &= !(1 << dest.index());
         }
         mul += 1;
         mv = if dir.is_positive() {
@@ -321,7 +314,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32, single: boo
         end = mv & free;
         attacks = mv & cap;
     }
-    return response;
+    response
 }
 
 fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> {
@@ -335,7 +328,7 @@ fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> 
 
     while end.leading_zeros() != u64::BITS {
         let dest: u8 = 63 - end.leading_zeros() as u8;
-        end = end & !(1 << dest);
+        end &= !(1 << dest);
         let origin = (dest as i32 - dir) as u8;
         let promotions = if dest >> 3 == 7 || dest >> 3 == 0 {
             vec![
@@ -356,7 +349,7 @@ fn pawn_moves(initial: Bitboard, legal_spaces: Bitboard, dir: i32) -> Vec<Move> 
             })
         }
     }
-    return moves;
+    moves
 }
 
 #[cfg(test)]
