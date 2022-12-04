@@ -3,6 +3,21 @@ use std::time::Instant;
 
 use chess_board::Board;
 
+fn divided_perft(board: &mut Board, depth: usize) {
+    let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
+    let total: usize = board.pseudolegal_moves(board.is_white_to_move()).into_iter().filter_map(|mv| {
+        if board.make(mv).is_ok() {
+            let t = perft_with_map(board, depth - 1, &mut tps);
+            println!("{}: {}", mv, t);
+            board.unmake();
+            Some(t)
+        } else {
+            None
+        }
+    }).sum();
+    println!("Nodes searched: {}", total);
+}
+
 fn perft(board: &mut Board, depth: usize) -> usize {
     if depth == 0 {
         return 1;
@@ -114,3 +129,10 @@ fn test_kiwipete5() {
     let elapsed = now.elapsed();
     println!("Running perft with depth 5 on kiwipete took {} seconds.", elapsed.as_secs());
 }
+
+//#[test]
+//fn test_divided_perft() {
+//    let fen = "rnbqk1nr/pppp1ppp/4p3/8/8/b2P4/PPPKPPPP/RNBQ1BNR w kq - 2 3";
+//    let mut b = Board::from_fen(fen).unwrap();
+//    divided_perft(&mut b, 1);
+//}

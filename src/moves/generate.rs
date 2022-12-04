@@ -12,13 +12,8 @@ const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 
 impl Board {
     pub fn is_attacked(&self, pos: Square, by_white: bool) -> bool {
-        let mvs = self.attacks(by_white);
-        for m in mvs {
-            if m.dest == pos {
-                return true;
-            }
-        }
-        false
+        //self.attacks(by_white).into_iter().any(|m| m.dest == pos)
+        !self.attackers(pos, by_white).is_empty()
     }
 
     pub fn pseudolegal_moves(&self, for_white: bool) -> Vec<Move> {
@@ -59,6 +54,66 @@ impl Board {
             right_attack,
         );
         mvs
+    }
+
+    pub fn attackers(&self, pos: Square, white: bool) -> Vec<Square> {
+        let start_map = 1 << pos.index();
+        let mut mvs: Vec<Move> = Vec::new();
+        //Not pawns or knights
+        let dirs = [
+            (UP, ALL, Piece::Rook(white)),
+            (UP + RIGHT, NOT_A_FILE, Piece::Bishop(white)),
+            (RIGHT, NOT_A_FILE, Piece::Rook(white)),
+            (DOWN + RIGHT, NOT_A_FILE, Piece::Bishop(white)),
+            (DOWN, ALL, Piece::Rook(white)),
+            (DOWN + LEFT, NOT_H_FILE, Piece::Bishop(white)),
+            (LEFT, NOT_H_FILE, Piece::Rook(white)),
+            (UP + LEFT, NOT_H_FILE, Piece::Bishop(white)),
+        ];
+        let free = self.position[Piece::Empty];
+        let king_bitboard = self.position[Piece::King(white)];
+        for (dir, filter, piece) in dirs {
+            let cap = self.position[piece] | self.position[Piece::Queen(white)];
+            moves(&mut mvs, start_map, free & filter, cap & filter, dir, false);
+            moves(&mut mvs, start_map, free & filter, king_bitboard & filter, dir, true);
+        }
+        // Adding pawn attacks
+        let pawns = self.position[Piece::Pawn(white)];
+        let left_attack = if !white { UP + LEFT } else { DOWN + LEFT };
+        pawn_moves(
+            &mut mvs,
+            start_map,
+            pawns & NOT_H_FILE,
+            left_attack,
+        );
+
+        let right_attack = if !white { UP + RIGHT } else { DOWN + RIGHT };
+        pawn_moves(
+            &mut mvs,
+            start_map,
+            pawns & NOT_A_FILE,
+            right_attack,
+        );
+        // Adding knight attacks
+        let not_gh = 0xfcfcfcfcfcfcfcfc;
+        let not_ab = 0x3f3f3f3f3f3f3f3f;
+
+        let knight_dirs = [
+            (UP + UP + RIGHT, NOT_A_FILE),
+            (UP + RIGHT + RIGHT, not_ab),
+            (DOWN + RIGHT + RIGHT, not_ab),
+            (DOWN + DOWN + RIGHT, NOT_A_FILE),
+            (DOWN + DOWN + LEFT, NOT_H_FILE),
+            (DOWN + LEFT + LEFT, not_gh),
+            (UP + LEFT + LEFT, not_gh),
+            (UP + UP + LEFT, NOT_H_FILE),
+        ];
+        let knight_bitboard = self.position[Piece::Knight(white)];
+        for (dir, filter) in knight_dirs {
+            moves(&mut mvs, start_map, free & filter, knight_bitboard & filter, dir, true);
+        }
+        // moves are backward
+        mvs.into_iter().filter_map(|m| if self.position[m.dest] != Piece::Empty { Some(m.dest) } else { None } ).collect()
     }
 
     pub fn legal_moves(&self, for_white: bool) -> Vec<Move> {
@@ -344,6 +399,9 @@ fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, di
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
+    use crate::square::Square;
     use crate::{moves::Move, Board};
 
     const POSITIONS: [(&str, usize); 6] = [
@@ -388,5 +446,30 @@ mod tests {
             }
             assert_eq!(moves, m.len());
         }
+    }
+
+    #[test]
+    fn test_attackers() {
+        let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1pK1P3/2N2Q1p/PPPBBPPP/R6R w kq - 0 1";
+        let g = Board::from_fen(fen).unwrap();
+        assert_eq!(vec!["b4".parse::<Square>().unwrap()], g.attackers("c3".parse().unwrap(), false))
+    }
+
+    #[test]
+    fn bench_is_attacked() {
+        let iterations = 1_000_000;
+        let game = Board::new();
+        let sqr: Square = "g1".parse().unwrap();
+        let mut now = Instant::now();
+        for _ in 0..iterations {
+           game.is_attacked(sqr, true); 
+        }
+        let is_attacked_time = now.elapsed();
+        now = Instant::now();
+        for _ in 0..iterations {
+            game.attackers(sqr, false);
+        }
+        let attackers_time = now.elapsed();
+        println!("is_attacked took {} milliseconds while attackers took {} milliseconds.", is_attacked_time.as_millis(), attackers_time.as_millis());
     }
 }
