@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
-use crate::position::HybridPosition;
-use crate::{piece, piece::Piece, square::Square, Board};
+use crate::piece::{PieceType, Color};
+use crate::position::Position;
+use crate::{piece::Piece, square::Square, Board};
 use regex::Regex;
 
 impl Board {
@@ -11,14 +12,14 @@ impl Board {
 
         output += self.position.to_string().as_str();
 
-        output += &format!(" {}", if self.white_to_move { "w" } else { "b" });
+        output += &format!(" {}", self.color_to_move);
 
         if self.castle.iter().all(|x| !x) {
             output += " -";
         } else {
             output.push(' ');
             for (i, &can_castle) in self.castle.iter().enumerate() {
-                let side = Piece::try_from(((i & 1) | ((i >> 1) * piece::BLACK)) as u8).unwrap();
+                let side = Piece::try_from((i & 1) << 1 | (i >> 1)).unwrap();
                 if can_castle {
                     output += &format!("{}", side);
                 }
@@ -34,7 +35,7 @@ impl Board {
         output += &format!(" {}", self.halfmove);
         output += &format!(" {}", self.fullmove);
 
-        return output;
+        output
     }
 
     pub fn from_fen(fen: impl Into<String>) -> Result<Self, BoardError> {
@@ -55,8 +56,8 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
 
     let mut board = Board {
-        position: HybridPosition::empty(),
-        white_to_move: true,
+        position: Position::empty(),
+        color_to_move: Color::White,
         castle: [false; 4],
         ep_target: None,
         halfmove: 0,
@@ -85,7 +86,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     // Setting white_to_move
     let stm = sections.next().ok_or_else(short_err)?;
     if stm.to_lowercase() != "w" {
-        board.white_to_move = false;
+        board.color_to_move = Color::Black;
     }
 
     // Castling rights
@@ -93,11 +94,11 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     for c in castling.chars() {
         let p: Piece = c.try_into()?;
         let mut i = match p {
-            Piece::King(_) => 0,
-            Piece::Queen(_) => 1,
+            Piece::Filled(PieceType::King, _) => 0,
+            Piece::Filled(PieceType::Queen, _) => 1,
             _ => continue,
         };
-        if !p.is_white() {
+        if let Piece::Filled(_, Color::Black) = p {
             i += 2;
         }
         board.castle[i] = true;
@@ -124,7 +125,7 @@ fn is_valid<S: Into<String>>(fen: S) -> bool {
         Some(b) => b,
         None => return false,
     };
-    let rows = b.split("/");
+    let rows = b.split('/');
     let mut row_count = 0;
     let mut pos_count = 0;
     for row in rows {
@@ -137,10 +138,11 @@ fn is_valid<S: Into<String>>(fen: S) -> bool {
                 };
             } else {
                 match Piece::try_from(c) {
-                    Ok(p) => match p {
-                        Piece::Empty => return false,
-                        _ => (),
-                    },
+                    Ok(p) => {
+                        if let Piece::Empty = p {
+                            return false;
+                        }
+                    }
                     Err(_) => return false,
                 };
                 pos_count += 1;
@@ -179,14 +181,14 @@ mod tests {
     use super::create_board;
 
     fn valid_fens() -> [String; 6] {
-        return [
+        [
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string(),
             "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".to_string(),
             "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1".to_string(),
             "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1".to_string(),
             "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".to_string(),
             "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".to_string(),
-        ];
+        ]
     }
 
     #[test]

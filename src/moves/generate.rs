@@ -1,5 +1,6 @@
 use std::vec;
 
+use crate::piece::{Color, PieceType};
 use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board};
 
 pub const UP: i32 = -8;
@@ -11,34 +12,34 @@ const NOT_H_FILE: u64 = 0xfefefefefefefefe;
 const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 
 impl Board {
-    pub fn is_attacked(&self, pos: Square, by_white: bool) -> bool {
+    pub fn is_attacked(&self, pos: Square, by_color: Color) -> bool {
         //self.attacks(by_white).into_iter().any(|m| m.dest == pos)
-        !self.attackers(pos, by_white).is_empty()
+        !self.attackers(pos, by_color).is_empty()
     }
 
-    pub fn pseudolegal_moves(&self, for_white: bool) -> Vec<Move> {
+    pub fn pseudolegal_moves(&self, for_color: Color) -> Vec<Move> {
         let mut mvs: Vec<Move> = Vec::new();
-        self.pawn_moves(&mut mvs, for_white);
-        self.knight_moves(&mut mvs, for_white);
-        self.bishop_moves(&mut mvs, for_white);
-        self.rook_moves(&mut mvs, for_white);
-        self.queen_moves(&mut mvs, for_white);
-        self.king_moves(&mut mvs, for_white);
+        self.pawn_moves(&mut mvs, for_color);
+        self.knight_moves(&mut mvs, for_color);
+        self.bishop_moves(&mut mvs, for_color);
+        self.rook_moves(&mut mvs, for_color);
+        self.queen_moves(&mut mvs, for_color);
+        self.king_moves(&mut mvs, for_color);
         mvs
     }
 
-    pub fn attacks(&self, for_white: bool) -> Vec<Move> {
+    pub fn attacks(&self, by_color: Color) -> Vec<Move> {
         let mut mvs: Vec<Move> = Vec::new();
-        self.king_moves(&mut mvs, for_white);
-        self.queen_moves(&mut mvs, for_white);
-        self.bishop_moves(&mut mvs, for_white);
-        self.knight_moves(&mut mvs, for_white);
-        self.rook_moves(&mut mvs, for_white);
+        self.king_moves(&mut mvs, by_color);
+        self.queen_moves(&mut mvs, by_color);
+        self.bishop_moves(&mut mvs, by_color);
+        self.knight_moves(&mut mvs, by_color);
+        self.rook_moves(&mut mvs, by_color);
 
         // Pawns have different attacks then movement
-        let initial = self.position[Piece::Pawn(for_white)];
-        let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
-        let free_space = !self.position.team_pieces(for_white); // Look at any empty square or opposing pieces
+        let initial = self.position[Piece::Filled(PieceType::Pawn, by_color)];
+        let left_attack = if by_color == Color::White { UP + LEFT } else { DOWN + LEFT };
+        let free_space = !self.position.team_pieces(by_color); // Look at any empty square or opposing pieces
         pawn_moves(
             &mut mvs,
             initial,
@@ -46,7 +47,7 @@ impl Board {
             left_attack,
         );
 
-        let right_attack = if for_white { UP + RIGHT } else { DOWN + RIGHT };
+        let right_attack = if by_color == Color::White { UP + RIGHT } else { DOWN + RIGHT };
         pawn_moves(
             &mut mvs,
             initial,
@@ -56,30 +57,30 @@ impl Board {
         mvs
     }
 
-    pub fn attackers(&self, pos: Square, white: bool) -> Vec<Square> {
+    pub fn attackers(&self, pos: Square, color: Color) -> Vec<Square> {
         let start_map = 1 << pos.index();
         let mut mvs: Vec<Move> = Vec::new();
         //Not pawns or knights
         let dirs = [
-            (UP, ALL, Piece::Rook(white)),
-            (UP + RIGHT, NOT_A_FILE, Piece::Bishop(white)),
-            (RIGHT, NOT_A_FILE, Piece::Rook(white)),
-            (DOWN + RIGHT, NOT_A_FILE, Piece::Bishop(white)),
-            (DOWN, ALL, Piece::Rook(white)),
-            (DOWN + LEFT, NOT_H_FILE, Piece::Bishop(white)),
-            (LEFT, NOT_H_FILE, Piece::Rook(white)),
-            (UP + LEFT, NOT_H_FILE, Piece::Bishop(white)),
+            (UP, ALL, Piece::Filled(PieceType::Rook, color)),
+            (UP + RIGHT, NOT_A_FILE, Piece::Filled(PieceType::Bishop, color)),
+            (RIGHT, NOT_A_FILE, Piece::Filled(PieceType::Rook, color)),
+            (DOWN + RIGHT, NOT_A_FILE, Piece::Filled(PieceType::Bishop, color)),
+            (DOWN, ALL, Piece::Filled(PieceType::Rook, color)),
+            (DOWN + LEFT, NOT_H_FILE, Piece::Filled(PieceType::Bishop, color)),
+            (LEFT, NOT_H_FILE, Piece::Filled(PieceType::Rook, color)),
+            (UP + LEFT, NOT_H_FILE, Piece::Filled(PieceType::Bishop, color)),
         ];
         let free = self.position[Piece::Empty];
-        let king_bitboard = self.position[Piece::King(white)];
+        let king_bitboard = self.position[Piece::Filled(PieceType::King, color)];
         for (dir, filter, piece) in dirs {
-            let cap = self.position[piece] | self.position[Piece::Queen(white)];
+            let cap = self.position[piece] | self.position[Piece::Filled(PieceType::Queen, color)];
             moves(&mut mvs, start_map, free & filter, cap & filter, dir, false);
             moves(&mut mvs, start_map, free & filter, king_bitboard & filter, dir, true);
         }
         // Adding pawn attacks
-        let pawns = self.position[Piece::Pawn(white)];
-        let left_attack = if !white { UP + LEFT } else { DOWN + LEFT };
+        let pawns = self.position[Piece::Filled(PieceType::Pawn, color)];
+        let left_attack = if color == Color::Black { UP + LEFT } else { DOWN + LEFT };
         pawn_moves(
             &mut mvs,
             start_map,
@@ -87,7 +88,7 @@ impl Board {
             left_attack,
         );
 
-        let right_attack = if !white { UP + RIGHT } else { DOWN + RIGHT };
+        let right_attack = if color == Color::Black { UP + RIGHT } else { DOWN + RIGHT };
         pawn_moves(
             &mut mvs,
             start_map,
@@ -108,7 +109,7 @@ impl Board {
             (UP + LEFT + LEFT, not_gh),
             (UP + UP + LEFT, NOT_H_FILE),
         ];
-        let knight_bitboard = self.position[Piece::Knight(white)];
+        let knight_bitboard = self.position[Piece::Filled(PieceType::Knight, color)];
         for (dir, filter) in knight_dirs {
             moves(&mut mvs, start_map, free & filter, knight_bitboard & filter, dir, true);
         }
@@ -116,17 +117,18 @@ impl Board {
         mvs.into_iter().filter_map(|m| if self.position[m.dest] != Piece::Empty { Some(m.dest) } else { None } ).collect()
     }
 
-    pub fn legal_moves(&self, for_white: bool) -> Vec<Move> {
+    pub fn legal_moves(&self, for_color: Color) -> Vec<Move> {
         // Should test performance of copying vs not.
         let mut game_copy = self.clone();
         self
-            .pseudolegal_moves(for_white)
+            .pseudolegal_moves(for_color)
             .into_iter()
             .filter(|&m| {
                 if game_copy.make(m).is_err() {
                     false
                 } else {
                     game_copy.unmake();
+                    println!("{:?}", game_copy);
                     true
                 }
             })
@@ -136,28 +138,28 @@ impl Board {
     pub fn moves_by_piece(&self, piece: Piece) -> Vec<Move> {
         let mut mvs: Vec<Move> = Vec::new();
         match piece {
-            Piece::King(is_white) => self.king_moves(&mut mvs, is_white),
-            Piece::Queen(is_white) => self.queen_moves(&mut mvs, is_white),
-            Piece::Bishop(is_white) => self.bishop_moves(&mut mvs, is_white),
-            Piece::Knight(is_white) => self.knight_moves(&mut mvs, is_white),
-            Piece::Rook(is_white) => self.rook_moves(&mut mvs, is_white),
-            Piece::Pawn(is_white) => self.pawn_moves(&mut mvs, is_white),
+            Piece::Filled(PieceType::King, color) => self.king_moves(&mut mvs, color),
+            Piece::Filled(PieceType::Queen, color) => self.queen_moves(&mut mvs, color),
+            Piece::Filled(PieceType::Bishop, color) => self.bishop_moves(&mut mvs, color),
+            Piece::Filled(PieceType::Knight, color) => self.knight_moves(&mut mvs, color),
+            Piece::Filled(PieceType::Rook, color) => self.rook_moves(&mut mvs, color),
+            Piece::Filled(PieceType::Pawn, color) => self.pawn_moves(&mut mvs, color),
             Piece::Empty => ()
         };
         mvs
     }
 
-    fn pawn_moves(&self, moves: &mut Vec<Move>, for_white: bool) {
+    fn pawn_moves(&self, moves: &mut Vec<Move>, for_color: Color) {
 
-        let piece = Piece::Pawn(for_white);
-        let dir = if for_white { UP } else { DOWN };
+        let piece = Piece::Filled(PieceType::Pawn, for_color);
+        let dir = if for_color == Color::White { UP } else { DOWN };
         let initial = self.position[piece];
         let mut free_space = self.position[Piece::Empty];
 
         pawn_moves(moves, initial, free_space, dir);
 
         // Checks that space between double move is clear
-        free_space &= if for_white {
+        free_space &= if for_color == Color::White {
             (free_space >> 8) & 0xff00000000
         } else {
             (free_space << 8) & 0xff000000
@@ -170,8 +172,8 @@ impl Board {
         } else {
             0
         };
-        let left_attack = if for_white { UP + LEFT } else { DOWN + LEFT };
-        free_space = self.position.team_pieces(!for_white) | ep_map;
+        let left_attack = if for_color == Color::White { UP + LEFT } else { DOWN + LEFT };
+        free_space = self.position.team_pieces(!for_color) | ep_map; // Should be opposite color
         pawn_moves(
             moves,
             initial,
@@ -179,7 +181,7 @@ impl Board {
             left_attack,
         );
 
-        let right_attack = if for_white { UP + RIGHT } else { DOWN + RIGHT };
+        let right_attack = if for_color == Color::White { UP + RIGHT } else { DOWN + RIGHT };
         pawn_moves(
             moves,
             initial,
@@ -188,10 +190,10 @@ impl Board {
         );
     }
 
-    fn king_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
-        let i = self.position[Piece::King(for_white)];
+    fn king_moves(&self, mvs: &mut Vec<Move>, for_color: Color) {
+        let i = self.position[Piece::Filled(PieceType::King, for_color)];
         let f = self.position[Piece::Empty];
-        let o = self.position.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_color); // Should be opposite color
 
         let dirs = [
             (UP, ALL),
@@ -208,16 +210,14 @@ impl Board {
             moves(mvs, i, f & filter, o & filter, dir, true);
         }
 
-        let index_offset = if for_white { 0 } else { 2 };
-        let ks_filter = 0b00000110 << if for_white { 56 } else { 0 };
-        let qs_filter = 0b01110000 << if for_white { 56 } else { 0 };
+        let index_offset = if for_color == Color::White { 0 } else { 2 };
+        let ks_filter = 0b00000110 << if for_color == Color::White { 56 } else { 0 };
+        let qs_filter = 0b01110000 << if for_color == Color::White { 56 } else { 0 };
 
         if self.castle[index_offset] && f & ks_filter == ks_filter {
             // King Side Castle
-            let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Square = ((origin.index() as i32 + 2 * RIGHT) as u8)
-                .try_into()
-                .unwrap();
+            let origin: Square = Square(63 - i.leading_zeros() as u8);
+            let dest: Square = Square((origin.index() as i32 + 2 * RIGHT) as u8);
             mvs.push(Move {
                 origin,
                 dest,
@@ -226,10 +226,8 @@ impl Board {
         }
         if self.castle[1 | index_offset] && f & qs_filter == qs_filter {
             // Queen Side Castle
-            let origin: Square = (63 - i.leading_zeros() as u8).try_into().unwrap();
-            let dest: Square = ((origin.index() as i32 + 2 * LEFT) as u8)
-                .try_into()
-                .unwrap();
+            let origin: Square = Square(63 - i.leading_zeros() as u8);
+            let dest: Square = Square((origin.index() as i32 + 2 * LEFT) as u8);
             mvs.push(Move {
                 origin,
                 dest,
@@ -238,10 +236,10 @@ impl Board {
         }
     }
 
-    fn queen_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
-        let i = self.position[Piece::Queen(for_white)];
+    fn queen_moves(&self, mvs: &mut Vec<Move>, for_color: Color) {
+        let i = self.position[Piece::Filled(PieceType::Queen, for_color)];
         let f = self.position[Piece::Empty];
-        let o = self.position.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_color); //Should be opposite color
 
         let dirs = [
             (UP, ALL),
@@ -259,10 +257,10 @@ impl Board {
         }
     }
 
-    fn bishop_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
-        let i = self.position[Piece::Bishop(for_white)];
+    fn bishop_moves(&self, mvs: &mut Vec<Move>, for_color: Color) {
+        let i = self.position[Piece::Filled(PieceType::Bishop, for_color)];
         let f = self.position[Piece::Empty];
-        let o = self.position.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_color);
 
         let dirs = [
             (UP + RIGHT, NOT_A_FILE),
@@ -276,10 +274,10 @@ impl Board {
         }
     }
 
-    fn rook_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
-        let i = self.position[Piece::Rook(for_white)];
+    fn rook_moves(&self, mvs: &mut Vec<Move>, for_color: Color) {
+        let i = self.position[Piece::Filled(PieceType::Rook, for_color)];
         let f = self.position[Piece::Empty];
-        let o = self.position.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_color);
 
         let dirs = [
             (UP, ALL),
@@ -293,10 +291,10 @@ impl Board {
         }
     }
 
-    fn knight_moves(&self, mvs: &mut Vec<Move>, for_white: bool) {
-        let i = self.position[Piece::Knight(for_white)];
+    fn knight_moves(&self, mvs: &mut Vec<Move>, for_color: Color) {
+        let i = self.position[Piece::Filled(PieceType::Knight, for_color)];
         let f = self.position[Piece::Empty];
-        let o = self.position.team_pieces(!for_white);
+        let o = self.position.team_pieces(!for_color);
 
         let not_gh = 0xfcfcfcfcfcfcfcfc;
         let not_ab = 0x3f3f3f3f3f3f3f3f;
@@ -330,10 +328,8 @@ fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, 
     let mut mul = 1;
     while (end > 0 || attacks > 0) && (!single || mul == 1) {
         while end.leading_zeros() != u64::BITS {
-            let dest: Square = (63 - end.leading_zeros() as u8).try_into().unwrap();
-            let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
-                .try_into()
-                .unwrap();
+            let dest: Square = Square(63 - end.leading_zeros() as u8);
+            let origin: Square = Square((dest.index() as i32 - dir * mul) as u8);
             mvs.push(Move {
                 origin,
                 dest,
@@ -343,10 +339,8 @@ fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, 
             end &= !(1 << dest.index());
         }
         while attacks.leading_zeros() != u64::BITS {
-            let dest: Square = (63 - attacks.leading_zeros() as u8).try_into().unwrap();
-            let origin: Square = ((dest.index() as i32 - dir * mul) as u8)
-                .try_into()
-                .unwrap();
+            let dest: Square = Square(63 - attacks.leading_zeros() as u8);
+            let origin: Square = Square((dest.index() as i32 - dir * mul) as u8);
             mvs.push(Move {
                 origin,
                 dest,
@@ -371,6 +365,11 @@ fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, di
     } else {
         initial >> dir.abs()
     } & legal_spaces;
+    let color = if dir.is_positive() {
+        Color::Black
+    } else {
+        Color::White
+    };
 
     while end.leading_zeros() != u64::BITS {
         let dest: u8 = 63 - end.leading_zeros() as u8;
@@ -378,10 +377,10 @@ fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, di
         let origin = (dest as i32 - dir) as u8;
         let promotions = if dest >> 3 == 7 || dest >> 3 == 0 {
             vec![
-                Piece::Queen(dir.is_negative()),
-                Piece::Bishop(dir.is_negative()),
-                Piece::Knight(dir.is_negative()),
-                Piece::Rook(dir.is_negative()),
+                Piece::Filled(PieceType::Queen, color),
+                Piece::Filled(PieceType::Bishop, color),
+                Piece::Filled(PieceType::Knight, color),
+                Piece::Filled(PieceType::Rook, color),
             ]
         } else {
             vec![Piece::Empty]
@@ -389,8 +388,8 @@ fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, di
 
         for promotion in promotions {
             mvs.push(Move {
-                origin: origin.try_into().unwrap(),
-                dest: dest.try_into().unwrap(),
+                origin: Square(origin),
+                dest: Square(dest),
                 promotion,
             })
         }
@@ -399,8 +398,7 @@ fn pawn_moves(mvs: &mut Vec<Move>, initial: Bitboard, legal_spaces: Bitboard, di
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
+    use crate::piece::Color;
     use crate::square::Square;
     use crate::{moves::Move, Board};
 
@@ -432,7 +430,7 @@ mod tests {
     fn test_moves() {
         for (fen, moves) in POSITIONS {
             let game = Board::from_fen(fen).unwrap();
-            let m = game.legal_moves(game.white_to_move);
+            let m = game.legal_moves(game.color_to_move);
             if moves != m.len() {
                 println!(
                     "Generated moves from game with fen \"{}\" does not match expectations.",
@@ -452,24 +450,6 @@ mod tests {
     fn test_attackers() {
         let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1pK1P3/2N2Q1p/PPPBBPPP/R6R w kq - 0 1";
         let g = Board::from_fen(fen).unwrap();
-        assert_eq!(vec!["b4".parse::<Square>().unwrap()], g.attackers("c3".parse().unwrap(), false))
-    }
-
-    #[test]
-    fn bench_is_attacked() {
-        let iterations = 1_000_000;
-        let game = Board::new();
-        let sqr: Square = "g1".parse().unwrap();
-        let mut now = Instant::now();
-        for _ in 0..iterations {
-           game.is_attacked(sqr, true); 
-        }
-        let is_attacked_time = now.elapsed();
-        now = Instant::now();
-        for _ in 0..iterations {
-            game.attackers(sqr, false);
-        }
-        let attackers_time = now.elapsed();
-        println!("is_attacked took {} milliseconds while attackers took {} milliseconds.", is_attacked_time.as_millis(), attackers_time.as_millis());
+        assert_eq!(vec!["b4".parse::<Square>().unwrap()], g.attackers("c3".parse().unwrap(), Color::Black))
     }
 }

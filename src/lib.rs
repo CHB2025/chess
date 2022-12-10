@@ -4,7 +4,8 @@ use moves::MoveState;
 use piece::Piece;
 use square::Square;
 
-use self::position::HybridPosition;
+use self::piece::Color;
+use self::position::Position;
 
 pub mod error;
 pub mod fen;
@@ -16,8 +17,8 @@ pub mod square;
 
 #[derive(Clone)]
 pub struct Board {
-    position: HybridPosition, // K,Q,B,N,R,P,-,-,k,q,b,n,r,p. So i & 8 == 0 = is White, i & 7 = Piece
-    white_to_move: bool,
+    position: Position,
+    color_to_move: Color,
     castle: [bool; 4],
     ep_target: Option<Square>,
     halfmove: u32,
@@ -51,8 +52,8 @@ impl IntoIterator for &Board {
 impl default::Default for Board {
     fn default() -> Self {
         let mut response = Self {
-            position: HybridPosition::default(),
-            white_to_move: true,
+            position: Position::default(),
+            color_to_move: Color::White,
             castle: [true; 4],
             ep_target: None,
             halfmove: 0,
@@ -80,7 +81,10 @@ impl Board {
     }
 
     pub fn is_white_to_move(&self) -> bool {
-        self.white_to_move
+        self.color_to_move == Color::White
+    }
+    pub fn color_to_move(&self) -> Color {
+        self.color_to_move
     }
 }
 

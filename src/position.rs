@@ -1,46 +1,84 @@
 use core::fmt;
 use std::{default, ops};
 
-use crate::piece::Piece;
+use crate::piece::{Color, Piece, PieceType};
 use crate::square::Square;
 
 pub type Bitboard = u64;
 
 /// Chess board representation using both bitboards and piecewise representation
 #[derive(Clone, Copy)]
-pub struct HybridPosition {
-    bitboards: [Bitboard; 14],
+pub struct Position {
+    bitboards: [Bitboard; 13],
     pieces: [Piece; 64],
 }
 
-impl default::Default for HybridPosition {
+impl default::Default for Position {
     #[rustfmt::skip]
     fn default() -> Self {
         Self {
             bitboards: [
-                0x08 << 56, 0x10 << 56, 0x24 << 56, 0x42 << 56, 0x81 << 56, 0xff << 48, 
-                0xffffffff << 16, 0, 
-                0x08, 0x10, 0x24, 0x42, 0x81, 0xff << 8
+                0x08 << 56,
+                0x08,
+                0x10 << 56,
+                0x10,
+                0x24 << 56,
+                0x24,
+                0x42 << 56,
+                0x42,
+                0x81 << 56,
+                0x81,
+                0xff << 48,
+                0xff << 8,
+                0xffffffff << 16,
             ],
             pieces: [
-                Piece::Rook(false), Piece::Knight(false), Piece::Bishop(false), Piece::King(false), Piece::Queen(false), Piece::Bishop(false), Piece::Knight(false), Piece::Rook(false),
+                Piece::Filled(PieceType::Rook, Color::Black),
+                Piece::Filled(PieceType::Knight, Color::Black),
+                Piece::Filled(PieceType::Bishop, Color::Black),
+                Piece::Filled(PieceType::King, Color::Black),
+                Piece::Filled(PieceType::Queen, Color::Black),
+                Piece::Filled(PieceType::Bishop, Color::Black),
+                Piece::Filled(PieceType::Knight, Color::Black),
+                Piece::Filled(PieceType::Rook, Color::Black),
                 // White Pawns
-                Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false), Piece::Pawn(false),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::Filled(PieceType::Pawn, Color::Black),
                 // Blank rows
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 //Black Pawns
-                Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true), Piece::Pawn(true),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::Filled(PieceType::Pawn, Color::White),
                 // Other black pieces
-                Piece::Rook(true), Piece::Knight(true), Piece::Bishop(true), Piece::King(true), Piece::Queen(true), Piece::Bishop(true), Piece::Knight(true), Piece::Rook(true),
+                Piece::Filled(PieceType::Rook, Color::White),
+                Piece::Filled(PieceType::Knight, Color::White),
+                Piece::Filled(PieceType::Bishop, Color::White),
+                Piece::Filled(PieceType::King, Color::White),
+                Piece::Filled(PieceType::Queen, Color::White),
+                Piece::Filled(PieceType::Bishop, Color::White),
+                Piece::Filled(PieceType::Knight, Color::White),
+                Piece::Filled(PieceType::Rook, Color::White),
             ],
         }
     }
 }
 
-impl fmt::Display for HybridPosition {
+impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut output = String::new();
         for rank in 0..8 {
@@ -63,11 +101,11 @@ impl fmt::Display for HybridPosition {
                 output.push('/');
             }
         }
-       write!(f, "{}", output) 
+        write!(f, "{}", output)
     }
 }
 
-impl fmt::Debug for HybridPosition {
+impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut output = String::new();
         for row in 0..8 {
@@ -85,7 +123,7 @@ impl fmt::Debug for HybridPosition {
 }
 
 // Public indexing operations
-impl ops::Index<Piece> for HybridPosition {
+impl ops::Index<Piece> for Position {
     type Output = Bitboard;
 
     fn index(&self, index: Piece) -> &Self::Output {
@@ -93,7 +131,7 @@ impl ops::Index<Piece> for HybridPosition {
     }
 }
 
-impl ops::Index<Square> for HybridPosition {
+impl ops::Index<Square> for Position {
     type Output = Piece;
 
     fn index(&self, index: Square) -> &Self::Output {
@@ -101,7 +139,7 @@ impl ops::Index<Square> for HybridPosition {
     }
 }
 
-impl IntoIterator for &HybridPosition {
+impl IntoIterator for &Position {
     type Item = Piece;
 
     type IntoIter = std::array::IntoIter<Self::Item, 64>;
@@ -113,14 +151,14 @@ impl IntoIterator for &HybridPosition {
 
 // Re-implementing indexing on the underlying arrays rather than the struct itself
 // so that the mutable indexing is not available outside the mod
-impl ops::Index<Piece> for [Bitboard; 14] {
+impl ops::Index<Piece> for [Bitboard; 13] {
     type Output = Bitboard;
 
     fn index(&self, index: Piece) -> &Self::Output {
         &self[index.index()]
     }
 }
-impl ops::IndexMut<Piece> for [Bitboard; 14] {
+impl ops::IndexMut<Piece> for [Bitboard; 13] {
     fn index_mut(&mut self, index: Piece) -> &mut Self::Output {
         &mut self[index.index()]
     }
@@ -139,11 +177,12 @@ impl ops::IndexMut<Square> for [Piece; 64] {
     }
 }
 
-impl HybridPosition {
+impl Position {
+    /// Creates a new, completely empty board representation
     pub fn empty() -> Self {
-        Self{
-            bitboards: [0, 0, 0, 0, 0, 0, 0xffffffffffffffff, 0, 0, 0, 0, 0, 0, 0],
-            pieces: [Piece::Empty; 64]
+        Self {
+            bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
+            pieces: [Piece::Empty; 64],
         }
     }
 
@@ -173,8 +212,14 @@ impl HybridPosition {
         self.put(piece, to)
     }
 
-    pub fn team_pieces(&self, white: bool) -> Bitboard {
-        let range = Piece::King(white).index()..=Piece::Pawn(white).index();
-        self.bitboards[range].iter().fold(0, |team, individual| team |individual)
+    pub fn team_pieces(&self, color: Color) -> Bitboard {
+        // Pieces are every-other
+        let range = Piece::Filled(PieceType::King, color).index()
+            ..=Piece::Filled(PieceType::Pawn, color).index();
+        let mut team = 0;
+        for i in range.step_by(2) {
+            team |= self.bitboards[i];
+        }
+        team
     }
 }

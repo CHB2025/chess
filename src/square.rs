@@ -2,8 +2,10 @@ use std::{fmt, str};
 
 use crate::error::{BoardError, ErrorKind};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Square(u8);
+const A1: u8 = 63;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub struct Square(pub(super) u8);
 
 impl fmt::Display for Square {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -24,14 +26,14 @@ impl str::FromStr for Square {
             ));
         }
         let p_bytes = s.as_bytes();
-        return Ok(Square((b'h' - p_bytes[0]) + ((b'8' - p_bytes[1]) << 3)));
+        Ok(Square((b'h' - p_bytes[0]) + ((b'8' - p_bytes[1]) << 3)))
     }
 }
 
 impl TryFrom<u8> for Square {
     type Error = BoardError;
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value > 63 {
+        if value > A1 {
             return Err(BoardError::new(
                 ErrorKind::OutOfBounds,
                 "Index out of the board",
@@ -44,7 +46,7 @@ impl TryFrom<u8> for Square {
 impl TryFrom<usize> for Square {
     type Error = BoardError;
     fn try_from(value: usize) -> Result<Self, Self::Error> {
-        if value > 63 {
+        if value > A1.into() {
             return Err(BoardError::new(
                 ErrorKind::OutOfBounds,
                 "Index out of the board",
@@ -56,7 +58,7 @@ impl TryFrom<usize> for Square {
 impl TryFrom<u32> for Square {
     type Error = BoardError;
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        if value > 63 {
+        if value > A1.into() {
             return Err(BoardError::new(
                 ErrorKind::OutOfBounds,
                 "Index out of the board",
@@ -68,7 +70,7 @@ impl TryFrom<u32> for Square {
 impl TryFrom<u64> for Square {
     type Error = BoardError;
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value > 63 {
+        if value > A1.into() {
             return Err(BoardError::new(
                 ErrorKind::OutOfBounds,
                 "Index out of the board",
@@ -82,6 +84,7 @@ impl Square {
     pub fn index(self) -> u8 {
         self.0
     }
+
 }
 
 fn is_valid_position(position: &str) -> bool {
@@ -90,7 +93,7 @@ fn is_valid_position(position: &str) -> bool {
         return false;
     }
 
-    return b'a' <= p_bytes[0] && p_bytes[0] <= b'h' && b'0' <= p_bytes[1] && p_bytes[1] <= b'8';
+    b'a' <= p_bytes[0] && p_bytes[0] <= b'h' && b'0' <= p_bytes[1] && p_bytes[1] <= b'8'
 }
 
 #[cfg(test)]
@@ -103,7 +106,7 @@ mod tests {
     fn test_position_from_bit_index() {
         assert_eq!("a1", Square(63).to_string());
         assert_eq!("d4", Square(36).to_string());
-        assert!(Square::try_from(68 as u8).is_err());
+        assert!(Square::try_from(68_u8).is_err());
     }
 
     #[test]

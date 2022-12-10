@@ -9,7 +9,7 @@ use crate::{
     square::Square,
 };
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Move {
     pub origin: Square,
     pub dest: Square,
@@ -68,7 +68,7 @@ impl str::FromStr for Move {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct MoveState {
     pub mv: Move,
     pub capture: Piece,

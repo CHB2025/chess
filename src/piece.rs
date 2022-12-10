@@ -1,37 +1,41 @@
-use std::{fmt, str};
+use std::{fmt, str, ops};
 
 use crate::error::{BoardError, ErrorKind};
 
-const TYPE_MASK: u8 = 7;
-pub const BLACK: usize = 8;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub enum Piece {
-    King(bool),
-    Queen(bool),
-    Bishop(bool),
-    Knight(bool),
-    Rook(bool),
-    Pawn(bool),
+    Filled(PieceType, Color),
     Empty,
 }
 
-impl fmt::Display for Piece {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut c = match self {
-            Piece::King(_) => 'k',
-            Piece::Queen(_) => 'q',
-            Piece::Bishop(_) => 'b',
-            Piece::Knight(_) => 'n',
-            Piece::Rook(_) => 'r',
-            Piece::Pawn(_) => 'p',
-            Piece::Empty => '-',
-        };
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub enum PieceType {
+    King,
+    Queen,
+    Bishop,
+    Knight,
+    Rook,
+    Pawn,
+}
 
-        if self.is_white() {
-            c = c.to_ascii_uppercase();
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub enum Color {
+    White,
+    Black,
+}
+
+impl fmt::Display for Piece {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Filled(p, c) => {
+                let mut ch = format!("{}", p);
+                if *c == Color::White {
+                    ch = ch.to_uppercase();
+                }
+                write!(f, "{ch}")
+            }
+            Self::Empty => write!(f, "-"),
         }
-        write!(f, "{c}")
     }
 }
 
@@ -43,93 +47,113 @@ impl str::FromStr for Piece {
     }
 }
 
-impl TryFrom<u8> for Piece {
-    type Error = BoardError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value > 13 {
-            return Err(BoardError::new(ErrorKind::OutOfBounds, "Index too high"));
-        }
-        Ok(match value & TYPE_MASK {
-            0 => Piece::King(value >> 3 == 0),
-            1 => Piece::Queen(value >> 3 == 0),
-            2 => Piece::Bishop(value >> 3 == 0),
-            3 => Piece::Knight(value >> 3 == 0),
-            4 => Piece::Rook(value >> 3 == 0),
-            5 => Piece::Pawn(value >> 3 == 0),
-            6 => Piece::Empty,
-            _ => {
-                return Err(BoardError::new(
-                    ErrorKind::InvalidInput,
-                    "7 is not a valid piece type",
-                ))
-            }
-        })
-    }
-}
-
 impl TryFrom<char> for Piece {
     type Error = BoardError;
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
+        let color = if c.is_uppercase() {
+            Color::White
+        } else {
+            Color::Black
+        };
         Ok(match c.to_ascii_lowercase() {
-            'k' => Piece::King(c.is_uppercase()),
-            'q' => Piece::Queen(c.is_uppercase()),
-            'b' => Piece::Bishop(c.is_uppercase()),
-            'n' => Piece::Knight(c.is_uppercase()),
-            'r' => Piece::Rook(c.is_uppercase()),
-            'p' => Piece::Pawn(c.is_uppercase()),
+            'k' => Piece::Filled(PieceType::King, color),
+            'q' => Piece::Filled(PieceType::Queen, color),
+            'b' => Piece::Filled(PieceType::Bishop, color),
+            'n' => Piece::Filled(PieceType::Knight, color),
+            'r' => Piece::Filled(PieceType::Rook, color),
+            'p' => Piece::Filled(PieceType::Pawn, color),
             '-' => Piece::Empty,
             _ => {
                 return Err(BoardError::new(
                     ErrorKind::InvalidInput,
-                    "Illegal Character for piece",
+                    "Illegal character for piece",
                 ))
             }
         })
     }
 }
 
-impl Piece {
-    pub fn is_white(&self) -> bool {
-        *match self {
-            Piece::King(is_white) => is_white,
-            Piece::Queen(is_white) => is_white,
-            Piece::Bishop(is_white) => is_white,
-            Piece::Knight(is_white) => is_white,
-            Piece::Rook(is_white) => is_white,
-            Piece::Pawn(is_white) => is_white,
-            Piece::Empty => &false,
-        }
-    }
+impl TryFrom<usize> for Piece {
+    type Error = BoardError;
 
-    pub fn index(self: &Piece) -> usize {
+    fn try_from(index: usize) -> Result<Self, Self::Error> {
+        if index > 12 {
+            return Err(BoardError::new(
+                ErrorKind::OutOfBounds,
+                "Index out of bounds for piece",
+            ));
+        }
+        let color = if (index & 1) == 1 {
+            Color::Black
+        } else {
+            Color::White
+        };
+        Ok(match index >> 1 {
+            0 => Self::Filled(PieceType::King, color),
+            1 => Self::Filled(PieceType::Queen, color),
+            2 => Self::Filled(PieceType::Bishop, color),
+            3 => Self::Filled(PieceType::Knight, color),
+            4 => Self::Filled(PieceType::Rook, color),
+            5 => Self::Filled(PieceType::Pawn, color),
+            6 => Self::Empty,
+            _ => unreachable!()
+        })
+    }
+}
+
+impl fmt::Display for PieceType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c = match self {
+            Self::King => "k",
+            Self::Queen => "q",
+            Self::Bishop => "b",
+            Self::Knight => "n",
+            Self::Rook => "r",
+            Self::Pawn => "p",
+        };
+        write!(f, "{c}")
+    }
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c = match self {
+            Self::White => "w",
+            Self::Black => "b",
+        };
+        write!(f, "{c}")
+    }
+}
+
+impl ops::Not for Color {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
         match self {
-            Piece::King(is_white) => add_color(0, *is_white),
-            Piece::Queen(is_white) => add_color(1, *is_white),
-            Piece::Bishop(is_white) => add_color(2, *is_white),
-            Piece::Knight(is_white) => add_color(3, *is_white),
-            Piece::Rook(is_white) => add_color(4, *is_white),
-            Piece::Pawn(is_white) => add_color(5, *is_white),
-            Piece::Empty => 6,
+            Self::White => Self::Black,
+            Self::Black => Self::White,
         }
     }
 }
 
-fn add_color(index: usize, is_white: bool) -> usize {
-    if !is_white {
-        index | BLACK
-    } else {
-        index
+impl Piece {
+    pub fn index(&self) -> usize {
+        match self {
+            Self::Filled(p, c) => (*p as usize) << 1 | (*c as usize),
+            Self::Empty => 12,
+        }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::piece::Piece;
-
-    #[test]
-    fn test_parse() {
-        assert_eq!(Piece::King(true), "K".parse().unwrap())
+    pub fn color(&self) -> Option<Color> {
+        match self {
+            Self::Filled(_, c) => Some(*c),
+            Self::Empty => None,
+        }
+    }
+    pub fn piece_type(&self) -> Option<PieceType> {
+        match self {
+            Self::Filled(t, _) => Some(*t),
+            Self::Empty => None,
+        }
     }
 }

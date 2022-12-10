@@ -1,6 +1,7 @@
 use rand::{self, RngCore, SeedableRng};
 use std::hash::Hash;
 
+use crate::piece::Color;
 use crate::{piece::Piece, Board};
 
 pub(crate) const MAX_PIECE_INDEX: usize = 767;
@@ -28,7 +29,7 @@ impl Board {
         }
         // p on square 63 would be 767
         let mut next_index = MAX_PIECE_INDEX + 1;
-        if !self.white_to_move {
+        if self.color_to_move == Color::Black {
             h ^= self.hash_keys[next_index];
         }
         next_index += 1;
@@ -55,7 +56,7 @@ pub(crate) fn hash_index(p: Piece, index: usize) -> usize {
     let p_index = p.index();
     // Because piece is only from 0-6 it needs to be first to minimize space needed
     //       Piece type               +1 if black               Location
-    ((((p_index & 0b111) << 1) + !p.is_white() as usize) << 6) + index
+    (p_index << 6) + index
 }
 
 #[cfg(test)]
