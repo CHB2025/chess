@@ -1,6 +1,8 @@
 use std::{fmt, str};
 
+use crate::dir::Dir;
 use crate::error::{BoardError, ErrorKind};
+use crate::position::Bitboard;
 
 const A1: u8 = 63;
 
@@ -81,8 +83,35 @@ impl TryFrom<u64> for Square {
 }
 
 impl Square {
-    pub fn index(self) -> u8 {
+    pub fn index(&self) -> u8 {
         self.0
+    }
+
+    pub fn mask(&self) -> Bitboard {
+        1 << self.0
+    }
+
+    pub fn rank(&self) -> u8 {
+        self.0 >> 3
+    }
+    pub fn file(&self) -> u8 {
+        self.0 & 7
+    }
+    //Are these useful in any situation?
+    // Maybe quickly calculating if check is possible by a given piece
+    pub fn diagonal(&self) -> u8 {
+        self.rank().wrapping_sub(self.file())  & 15 
+    }
+    pub fn anti_diagonal(&self) -> u8 {
+        (self.rank() + self.file()) ^ 7
+    }
+
+    pub fn checked_add(&self, dir: Dir) -> Option<Self> {
+        let new_mask = dir.shift(self.mask());
+        match new_mask {
+            0 => None,
+            mask => Some(Self(63 - mask.leading_zeros() as u8))
+        }
     }
 
 }

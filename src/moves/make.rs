@@ -4,10 +4,8 @@ use crate::{
     moves::{Move, MoveState},
     piece::{Color, Piece, PieceType},
     square::Square,
-    Board,
+    Board, dir::Dir,
 };
-
-use super::generate;
 
 impl Board {
     pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
@@ -19,24 +17,24 @@ impl Board {
                 "Attempted to move wrong color",
             ));
         }
-        let pseudolegal_moves = self.moves_by_piece(piece);
-        if !pseudolegal_moves.contains(&mv) {
+        let moves = self.moves_for_square(mv.origin);
+        if !moves.contains(&mv) {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
         }
         // Castle over/out of check
-        if piece.piece_type() == Some(PieceType::King)
-            && mv.dest.index().abs_diff(mv.origin.index()) == 2
-            && (self.is_attacked(
-                Square(mv.dest.index().max(mv.origin.index()) - 1),
-                !self.color_to_move,
-            ) || self.is_attacked(mv.origin, !self.color_to_move))
-        {
-            return Err(BoardError::new(
-                ErrorKind::InvalidInput,
-                "Castle over check",
-            ));
-        }
-        //Move is valid, maybe not legal
+        //if piece.piece_type() == Some(PieceType::King)
+        //    && mv.dest.index().abs_diff(mv.origin.index()) == 2
+        //    && (self.is_attacked(
+        //        Square(mv.dest.index().max(mv.origin.index()) - 1),
+        //        !self.color_to_move,
+        //    ) || self.is_attacked(mv.origin, !self.color_to_move))
+        //{
+        //    return Err(BoardError::new(
+        //        ErrorKind::InvalidInput,
+        //        "Castle over check",
+        //    ));
+        //}
+        //Move is valid, and legal
 
         let is_ep = if let Some(e) = self.ep_target {
             e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move)
@@ -47,13 +45,11 @@ impl Board {
         let mut capture = self.position.r#move(mv.origin, mv.dest);
         if is_ep {
             capture = Piece::Filled(PieceType::Pawn, !self.color_to_move);
+            let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
+            self.position.clear(index);
         }
         if mv.promotion != Piece::Empty {
             self.position.put(mv.promotion, mv.dest);
-        }
-        if is_ep {
-            let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
-            self.position.clear(index);
         }
         let is_castle = Piece::Filled(PieceType::King, self.color_to_move) == piece
             && mv.dest.index().abs_diff(mv.origin.index()) == 2;
@@ -65,9 +61,9 @@ impl Board {
                 mv.origin.index() | 0b111
             };
             let r_dest = if is_ks_castle {
-                r_origin as i32 + 2 * generate::LEFT
+                r_origin as i32 + 2 * Dir::West.offset() 
             } else {
-                r_origin as i32 + 3 * generate::RIGHT
+                r_origin as i32 + 3 * Dir::East.offset()
             } as u8;
             self.position.r#move(Square(r_origin), Square(r_dest));
         }
@@ -141,18 +137,18 @@ impl Board {
         // self.color_to_move has already been switched
         // What if there is no king on the board? Will that case ever arise?
         // Leaving expect to panic if this ever happens
-        let king: Square = (63
-            - self.position[Piece::Filled(PieceType::King, !self.color_to_move)].leading_zeros()
-                as u8)
-            .try_into()
-            .expect("Unable to test check. Maybe missing king");
-        if self.is_attacked(king, self.color_to_move) {
-            self.unmake();
-            return Err(BoardError::new(
-                ErrorKind::InvalidInput,
-                "Moving into check",
-            ));
-        }
+        // let king: Square = (63
+        //     - self.position[Piece::Filled(PieceType::King, !self.color_to_move)].leading_zeros()
+        //         as u8)
+        //     .try_into()
+        //     .expect("Unable to test check. Maybe missing king");
+        //if self.position.in_check(!self.color_to_move) {
+        //    self.unmake();
+        //    return Err(BoardError::new(
+        //        ErrorKind::InvalidInput,
+        //        "Moving into check",
+        //    ));
+        //}
         Ok(())
     }
 
@@ -165,6 +161,12 @@ impl Board {
             Piece::Empty => self[ms.mv.dest],
             Piece::Filled(_, color) => Piece::Filled(PieceType::Pawn, color),
         };
+        if piece == Piece::Empty {
+            println!("Panic!!!! Piece is empty");
+            println!("Undoing move from {} to {}\nCapture: {}\nPromotion: {}", ms.mv.origin, ms.mv.dest, ms.capture, ms.mv.promotion);
+            println!("{:?}", self);
+
+        }
         self.increment_hash(ms, piece);
         if ms.mv.promotion != Piece::Empty {
             self.position.put(piece, ms.mv.dest);
@@ -195,9 +197,9 @@ impl Board {
                 ms.mv.origin.index() | 0b111
             });
             let r_dest: Square = Square(if is_ks_castle {
-                r_origin.index() as i32 + 2 * generate::LEFT
+                r_origin.index() as i32 + 2 * Dir::West.offset()
             } else {
-                r_origin.index() as i32 + 3 * generate::RIGHT
+                r_origin.index() as i32 + 3 * Dir::East.offset()
             } as u8);
             self.position.r#move(r_dest, r_origin);
         }
@@ -279,8 +281,8 @@ mod tests {
 
     impl Board {
         fn is_valid(&self) -> bool {
-            let white_pieces = self.position.team_pieces(Color::White);
-            let black_pieces = self.position.team_pieces(Color::White);
+            let white_pieces = self.position.pieces_by_color(Color::White);
+            let black_pieces = self.position.pieces_by_color(Color::White);
             let empty = self.position[Piece::Empty];
             white_pieces & black_pieces == 0
                 && white_pieces & empty == 0

@@ -6,7 +6,7 @@ use chess_board::Board;
 
 pub fn divided_perft(board: &mut Board, depth: usize) {
     let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
-    let total: usize = board.pseudolegal_moves(board.color_to_move()).into_iter().filter_map(|mv| {
+    let total: usize = board.moves().into_iter().filter_map(|mv| {
         if board.make(mv).is_ok() {
             let t = perft_with_map(board, depth - 1, &mut tps);
             println!("{}: {}", mv, t);
@@ -43,7 +43,7 @@ fn perft_with_map(
         return *e.get();
     }
     let value = board
-        .pseudolegal_moves(board.color_to_move())
+        .moves()
         .into_iter()
         .filter_map(|m| {
             if board.make(m).is_ok() {

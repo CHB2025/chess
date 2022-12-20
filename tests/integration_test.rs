@@ -72,7 +72,7 @@ fn test_kiwipete5() {
     let now = Instant::now();
     perft(&mut b, 5);
     let elapsed = now.elapsed();
-    println!("Running perft with depth 5 on kiwipete took {} seconds.", elapsed.as_secs());
+    println!("Running perft with depth 5 on kiwipete took {} milliseconds.", elapsed.as_millis());
 }
 
 //#[test]

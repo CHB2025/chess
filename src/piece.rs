@@ -2,13 +2,13 @@ use std::{fmt, str, ops};
 
 use crate::error::{BoardError, ErrorKind};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum Piece {
     Filled(PieceType, Color),
     Empty,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum PieceType {
     King,
     Queen,
@@ -18,7 +18,7 @@ pub enum PieceType {
     Pawn,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum Color {
     White,
     Black,

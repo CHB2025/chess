@@ -7,12 +7,14 @@ use square::Square;
 use self::piece::Color;
 use self::position::Position;
 
+pub mod dir;
 pub mod error;
 pub mod fen;
 pub mod hash;
-pub(crate) mod position;
 pub mod moves;
 pub mod piece;
+pub(crate) mod position;
+pub mod ray;
 pub mod square;
 
 #[derive(Clone)]
@@ -44,6 +46,8 @@ impl IntoIterator for &Board {
     type Item = Piece;
     type IntoIter = std::array::IntoIter<Self::Item, 64>;
 
+    /// Returns an iterator of all the pieces on the board in big-endian order
+    /// (h8-a1).
     fn into_iter(self) -> Self::IntoIter {
         self.position.into_iter()
     }
@@ -57,7 +61,7 @@ impl default::Default for Board {
             castle: [true; 4],
             ep_target: None,
             halfmove: 0,
-            fullmove: 1, // This maybe should be 1?
+            fullmove: 1,
             move_history: Vec::new(),
             hash: 0,
             hash_keys: [0; 781],

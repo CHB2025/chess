@@ -110,7 +110,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     board.halfmove = sections.next().ok_or_else(short_err)?.parse()?;
     board.fullmove = sections.next().ok_or_else(short_err)?.parse()?;
-
+    
     board.initialize_hash();
 
     Ok(board)

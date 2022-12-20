@@ -43,7 +43,7 @@ fn perft_with_map(
         return *e.get();
     }
     let value = board
-        .pseudolegal_moves(board.color_to_move())
+        .moves()
         .into_iter()
         .filter_map(|m| {
             if board.make(m).is_ok() {

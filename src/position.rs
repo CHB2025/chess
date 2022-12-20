@@ -4,19 +4,24 @@ use std::{default, ops};
 use crate::piece::{Color, Piece, PieceType};
 use crate::square::Square;
 
+pub mod attacks;
+
 pub type Bitboard = u64;
 
 /// Chess board representation using both bitboards and piecewise representation
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Position {
     bitboards: [Bitboard; 13],
+    attacks: [Bitboard; 2],
+    pins: [Vec<Bitboard>; 2],
+    checks: [Vec<Bitboard>; 2],
     pieces: [Piece; 64],
 }
 
 impl default::Default for Position {
     #[rustfmt::skip]
     fn default() -> Self {
-        Self {
+         Self {
             bitboards: [
                 0x08 << 56,
                 0x08,
@@ -32,6 +37,9 @@ impl default::Default for Position {
                 0xff << 8,
                 0xffffffff << 16,
             ],
+            attacks: [0xff << 40, 0xff << 16],
+            pins: [Vec::new(), Vec::new() ],
+            checks: [Vec::new(), Vec::new()],
             pieces: [
                 Piece::Filled(PieceType::Rook, Color::Black),
                 Piece::Filled(PieceType::Knight, Color::Black),
@@ -164,14 +172,14 @@ impl ops::IndexMut<Piece> for [Bitboard; 13] {
     }
 }
 
-impl ops::Index<Square> for [Piece; 64] {
-    type Output = Piece;
+impl<T> ops::Index<Square> for [T; 64] {
+    type Output = T;
 
     fn index(&self, index: Square) -> &Self::Output {
         &self[index.index() as usize]
     }
 }
-impl ops::IndexMut<Square> for [Piece; 64] {
+impl<T> ops::IndexMut<Square> for [T; 64] {
     fn index_mut(&mut self, index: Square) -> &mut Self::Output {
         &mut self[index.index() as usize]
     }
@@ -182,37 +190,61 @@ impl Position {
     pub fn empty() -> Self {
         Self {
             bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
+            attacks: [0, 0],
+            pins: [Vec::new(), Vec::new()],
+            checks: [Vec::new(), Vec::new()],
             pieces: [Piece::Empty; 64],
         }
     }
 
-    /// Puts the provided piece in the provided square. Returns the piece that was replaced
-    pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
+    fn update_attacks_and_pins(&mut self) {
+        self.pins[0] = self.gen_pins(Color::White);
+        self.pins[1] = self.gen_pins(Color::Black);
+        self.checks[0] = self.gen_checks(Color::White);
+        self.checks[1] = self.gen_checks(Color::Black);
+        self.attacks[0] = self.gen_attacks(Color::White);
+        self.attacks[1] = self.gen_attacks(Color::Black);
+    }
+
+    // Doesn't update attacks or pins
+    fn internal_put(&mut self, piece: Piece, square: Square) -> Piece {
         let replaced = self.pieces[square];
         self.pieces[square] = piece;
         let map = 1 << square.index();
         self.bitboards[replaced] &= !map;
         self.bitboards[piece] |= map;
+
+        replaced
+    }
+
+    /// Puts the provided piece in the provided square. Returns the piece that was replaced
+    pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
+        let replaced = self.internal_put(piece, square);
+        self.update_attacks_and_pins();
+
         replaced
     }
 
     /// Clears the provided square. Returns the piece that previously held that position
     pub fn clear(&mut self, square: Square) -> Piece {
-        self.put(Piece::Empty, square)
+        let removed = self.internal_put(Piece::Empty, square);
+        self.update_attacks_and_pins();
+        removed
     }
 
     /// Moves the piece at `from` to `to`. Returns the piece that was replaced at `to`.
     pub fn r#move(&mut self, from: Square, to: Square) -> Piece {
-        let piece = self.clear(from);
-        self.put(piece, to)
+        self.move_replace(from, to, Piece::Empty)
     }
 
     pub fn move_replace(&mut self, from: Square, to: Square, replacement: Piece) -> Piece {
-        let piece = self.put(replacement, from);
-        self.put(piece, to)
+        let piece = self.internal_put(replacement, from);
+        let capture = self.internal_put(piece, to);
+        self.update_attacks_and_pins();
+        capture
     }
 
-    pub fn team_pieces(&self, color: Color) -> Bitboard {
+    pub fn pieces_by_color(&self, color: Color) -> Bitboard {
         // Pieces are every-other
         let range = Piece::Filled(PieceType::King, color).index()
             ..=Piece::Filled(PieceType::Pawn, color).index();
@@ -221,5 +253,33 @@ impl Position {
             team |= self.bitboards[i];
         }
         team
+    }
+
+    pub fn attacks_by_color(&self, color: Color) -> Bitboard {
+        self.attacks[color as usize]
+    }
+
+    pub fn pin_on_square(&self, square: Square) -> Bitboard {
+        let map = 1 << square.index();
+        let piece = self[square];
+        match piece {
+            // Not sure what exactly is being copied and referenced here and if it is a performance
+            // problem
+            Piece::Filled(_, color) => *self.pins[color as usize]
+                .iter()
+                .find(|&pin| *pin & map != 0)
+                .unwrap_or(&!0),
+            Piece::Empty => !0,
+        }
+    }
+    pub fn pins_on_color(&self, color: Color) -> &Vec<Bitboard> {
+        &self.pins[color as usize]
+    }
+    pub fn check_restrictions(&self, color: Color) -> Bitboard {
+        self.checks[color as usize].iter().fold(!0u64, |a, b| a & b)
+    }
+
+    pub fn in_check(&self, color: Color) -> bool {
+        !self.checks[color as usize].is_empty()
     }
 }
