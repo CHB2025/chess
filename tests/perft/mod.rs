@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 
 use chess_board::Board;
-
 
 //pub fn divided_perft(board: &mut Board, depth: usize) {
 //    let mut tps: HashMap<u64, HashMap<usize, usize>> = HashMap::new();
@@ -35,29 +34,28 @@ fn perft_with_map(
     if depth == 0 {
         return 1;
     }
-    if let Entry::Occupied(e) = tps
-        .entry(board.get_hash())
-        .or_default()
-        .entry(depth)
-    {
+    if let Entry::Occupied(e) = tps.entry(board.get_hash()).or_default().entry(depth) {
         return *e.get();
     }
-    let value = board
-        .moves()
-        .into_iter()
-        .filter_map(|m| {
-            if board.make(m).is_ok() {
-                let t = Some(perft_with_map(board, depth - 1, tps));
-                board.unmake();
-                t
-            } else {
-                None
-            }
-        })
-        .sum();
+    let value = if depth == 1 {
+        board.moves().len()
+    } else {
+        board
+            .moves()
+            .into_iter()
+            .filter_map(|m| {
+                if board.make(m).is_ok() {
+                    let t = Some(perft_with_map(board, depth - 1, tps));
+                    board.unmake();
+                    t
+                } else {
+                    None
+                }
+            })
+            .sum()
+    };
     *tps.entry(board.get_hash())
         .or_default()
         .entry(depth)
         .or_insert(value)
 }
-
