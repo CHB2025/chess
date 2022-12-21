@@ -103,5 +103,9 @@ mod tests {
             game.to_fen(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         );
+        for mv in game.moves() {
+            println!("{}", mv);
+        }
+        assert_eq!(game.moves().len(), 20)
     }
 }

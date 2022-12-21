@@ -40,7 +40,7 @@ impl default::Default for Position {
             ],
             attacks: [0xff << 40, 0xff << 16],
             pins: [0, 0],
-            checks: [0, 0],
+            checks: [!0, !0],
             pieces: [
                 Piece::Filled(PieceType::Rook, Color::Black),
                 Piece::Filled(PieceType::Knight, Color::Black),
@@ -193,7 +193,7 @@ impl Position {
             bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
             attacks: [0, 0],
             pins: [0, 0],
-            checks: [0, 0],
+            checks: [!0, !0],
             pieces: [Piece::Empty; 64],
         }
     }
@@ -258,7 +258,6 @@ impl Position {
     }
 
     pub fn pieces_by_color(&self, color: Color) -> Bitboard {
-        // Pieces are every-other
         let range = Piece::Filled(PieceType::King, color).index()
             ..=Piece::Filled(PieceType::Pawn, color).index();
         range.step_by(2).fold(0, |team, i| team | self.bitboards[i])
@@ -273,7 +272,6 @@ impl Position {
         match piece {
             Piece::Filled(_, color) => {
                 if self.pins[color as usize] & square.mask() == square.mask() {
-                    // Safe because if king is not on board, pins = 0
                     Ray::from(self.king(color), square)
                 } else {
                     None
