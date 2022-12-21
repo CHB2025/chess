@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use chess_board::Board;
-use perft::perft; 
+use perft::perft;
 
 mod perft;
 
@@ -72,12 +72,20 @@ fn test_kiwipete5() {
     let now = Instant::now();
     perft(&mut b, 5);
     let elapsed = now.elapsed();
-    println!("Running perft with depth 5 on kiwipete took {} milliseconds.", elapsed.as_millis());
+    println!(
+        "Running perft with depth 5 on kiwipete took {} milliseconds.",
+        elapsed.as_millis()
+    );
 }
 
-//#[test]
-//fn test_divided_perft() {
-//    let fen = "rnbqk1nr/pppp1ppp/4p3/8/8/b2P4/PPPKPPPP/RNBQ1BNR w kq - 2 3";
-//    let mut b = Board::from_fen(fen).unwrap();
-//    divided_perft(&mut b, 1);
-//}
+#[test]
+fn test_initial6() {
+    let mut b = Board::new();
+    let now = Instant::now();
+    perft(&mut b, 6);
+    let elapsed = now.elapsed();
+    println!(
+        "Running perft with depth 6 on the initial position took {} milliseconds",
+        elapsed.as_millis()
+    );
+}
