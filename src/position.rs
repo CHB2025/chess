@@ -2,6 +2,7 @@ use core::fmt;
 use std::{default, ops};
 
 use crate::piece::{Color, Piece, PieceType};
+use crate::ray::Ray;
 use crate::square::Square;
 
 pub mod attacks;
@@ -13,8 +14,8 @@ pub type Bitboard = u64;
 pub struct Position {
     bitboards: [Bitboard; 13],
     attacks: [Bitboard; 2],
-    pins: [Vec<Bitboard>; 2],
-    checks: [Vec<Bitboard>; 2],
+    pins: [Bitboard; 2],
+    checks: [Bitboard; 2],
     pieces: [Piece; 64],
 }
 
@@ -38,8 +39,8 @@ impl default::Default for Position {
                 0xffffffff << 16,
             ],
             attacks: [0xff << 40, 0xff << 16],
-            pins: [Vec::new(), Vec::new() ],
-            checks: [Vec::new(), Vec::new()],
+            pins: [0, 0],
+            checks: [0, 0],
             pieces: [
                 Piece::Filled(PieceType::Rook, Color::Black),
                 Piece::Filled(PieceType::Knight, Color::Black),
@@ -191,17 +192,15 @@ impl Position {
         Self {
             bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
             attacks: [0, 0],
-            pins: [Vec::new(), Vec::new()],
-            checks: [Vec::new(), Vec::new()],
+            pins: [0, 0],
+            checks: [0, 0],
             pieces: [Piece::Empty; 64],
         }
     }
 
     fn update_attacks_and_pins(&mut self) {
-        self.pins[0] = self.gen_pins(Color::White);
-        self.pins[1] = self.gen_pins(Color::Black);
-        self.checks[0] = self.gen_checks(Color::White);
-        self.checks[1] = self.gen_checks(Color::Black);
+        self.update_pins_and_checks(Color::White);
+        self.update_pins_and_checks(Color::Black);
         self.attacks[0] = self.gen_attacks(Color::White);
         self.attacks[1] = self.gen_attacks(Color::Black);
     }
@@ -244,42 +243,53 @@ impl Position {
         capture
     }
 
+    /// Returns the square occupied by the king of the provided color.
+    /// Panics if the king is not on the board
+    pub fn king(&self, color: Color) -> Square {
+        let bitboard = self[Piece::Filled(PieceType::King, color)];
+        if bitboard == 0 {
+            panic!("King is not on the board")
+        }
+        Square(63 - bitboard.leading_zeros() as u8)
+    }
+
+    pub fn king_exists(&self, color: Color) -> bool {
+        self[Piece::Filled(PieceType::King, color)] != 0
+    }
+
     pub fn pieces_by_color(&self, color: Color) -> Bitboard {
         // Pieces are every-other
         let range = Piece::Filled(PieceType::King, color).index()
             ..=Piece::Filled(PieceType::Pawn, color).index();
-        let mut team = 0;
-        for i in range.step_by(2) {
-            team |= self.bitboards[i];
-        }
-        team
+        range.step_by(2).fold(0, |team, i| team | self.bitboards[i])
     }
 
     pub fn attacks_by_color(&self, color: Color) -> Bitboard {
         self.attacks[color as usize]
     }
 
-    pub fn pin_on_square(&self, square: Square) -> Bitboard {
-        let map = 1 << square.index();
+    pub fn pin_on_square(&self, square: Square) -> Option<Ray> {
         let piece = self[square];
         match piece {
-            // Not sure what exactly is being copied and referenced here and if it is a performance
-            // problem
-            Piece::Filled(_, color) => *self.pins[color as usize]
-                .iter()
-                .find(|&pin| *pin & map != 0)
-                .unwrap_or(&!0),
-            Piece::Empty => !0,
+            Piece::Filled(_, color) => {
+                if self.pins[color as usize] & square.mask() == square.mask() {
+                    // Safe because if king is not on board, pins = 0
+                    Ray::from(self.king(color), square)
+                } else {
+                    None
+                }
+            }
+            Piece::Empty => None,
         }
     }
-    pub fn pins_on_color(&self, color: Color) -> &Vec<Bitboard> {
-        &self.pins[color as usize]
+    pub fn pins_on_color(&self, color: Color) -> Bitboard {
+        self.pins[color as usize]
     }
     pub fn check_restrictions(&self, color: Color) -> Bitboard {
-        self.checks[color as usize].iter().fold(!0u64, |a, b| a & b)
+        self.checks[color as usize]
     }
 
     pub fn in_check(&self, color: Color) -> bool {
-        !self.checks[color as usize].is_empty()
+        self.checks[color as usize] != !0
     }
 }

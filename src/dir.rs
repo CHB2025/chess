@@ -41,6 +41,19 @@ impl Dir {
         }
     }
 
+    pub fn opposite(&self) -> Dir {
+        match self {
+            Dir::North => Dir::South,
+            Dir::NorEast => Dir::SouWest,
+            Dir::East => Dir::West, 
+            Dir::SouEast => Dir::NorWest,
+            Dir::South => Dir::North,
+            Dir::SouWest => Dir::NorEast,
+            Dir::West => Dir::East,
+            Dir::NorWest => Dir::SouEast,
+        }
+    }
+
     pub fn mask(&self) -> Bitboard {
         match self {
             Dir::North => ALL,

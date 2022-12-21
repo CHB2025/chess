@@ -105,83 +105,88 @@ impl Position {
         output
     }
 
-    pub(super) fn gen_checks(&self, color: Color) -> Vec<Bitboard> {
-        let mut checks: Vec<Bitboard> = Vec::new();
-        let king = Piece::Filled(PieceType::King, color);
-        let initial = self[king];
-        // Necessary for when assembling board and king isn't there yet
-        if initial == 0 {
-            return checks;
-        }
-        let free = self[Piece::Empty];
-        let dirs = [
-            Dir::North,
-            Dir::NorEast,
-            Dir::East,
-            Dir::SouEast,
-            Dir::South,
-            Dir::SouWest,
-            Dir::West,
-            Dir::NorWest,
-        ];
-        // Doesn't check for pawns or knights
-        for d in dirs {
-            let cap = self[Piece::Filled(d.piece_type(), !color)]
-                | self[Piece::Filled(PieceType::Queen, !color)];
-            let mv = moves(initial, free & d.mask(), cap & d.mask(), d.offset());
-            if mv & cap != 0 {
-                checks.push(mv);
-            }
-        }
-        let mut pawn_checks =
-            self.pawn_attacks(initial, color) & self[Piece::Filled(PieceType::Pawn, !color)];
-        while pawn_checks != 0 {
-            let index = 63u8 - pawn_checks.leading_zeros() as u8;
-            pawn_checks &= !(1 << index);
-            checks.push(1 << index);
-        }
-        let mut knight_checks =
-            self.knight_moves(initial) & self[Piece::Filled(PieceType::Knight, !color)];
-        while knight_checks != 0 {
-            let index = 63u8 - knight_checks.leading_zeros() as u8;
-            knight_checks &= !(1 << index);
-            checks.push(1 << index);
-        }
-        checks
-    }
+    //pub(super) fn gen_checks(&self, color: Color) -> Vec<Bitboard> {
+    //    let mut checks: Vec<Bitboard> = Vec::new();
+    //    let king = Piece::Filled(PieceType::King, color);
+    //    let initial = self[king];
+    //    // Necessary for when assembling board and king isn't there yet
+    //    if initial == 0 {
+    //        return checks;
+    //    }
+    //    let free = self[Piece::Empty];
+    //    let dirs = [
+    //        Dir::North,
+    //        Dir::NorEast,
+    //        Dir::East,
+    //        Dir::SouEast,
+    //        Dir::South,
+    //        Dir::SouWest,
+    //        Dir::West,
+    //        Dir::NorWest,
+    //    ];
+    //    // Doesn't check for pawns or knights
+    //    for d in dirs {
+    //        let cap = self[Piece::Filled(d.piece_type(), !color)]
+    //            | self[Piece::Filled(PieceType::Queen, !color)];
+    //        let mv = moves(initial, free & d.mask(), cap & d.mask(), d.offset());
+    //        if mv & cap != 0 {
+    //            checks.push(mv);
+    //        }
+    //    }
+    //    let mut pawn_checks =
+    //        self.pawn_attacks(initial, color) & self[Piece::Filled(PieceType::Pawn, !color)];
+    //    while pawn_checks != 0 {
+    //        let index = 63u8 - pawn_checks.leading_zeros() as u8;
+    //        pawn_checks &= !(1 << index);
+    //        checks.push(1 << index);
+    //    }
+    //    let mut knight_checks =
+    //        self.knight_moves(initial) & self[Piece::Filled(PieceType::Knight, !color)];
+    //    while knight_checks != 0 {
+    //        let index = 63u8 - knight_checks.leading_zeros() as u8;
+    //        knight_checks &= !(1 << index);
+    //        checks.push(1 << index);
+    //    }
+    //    checks
+    //}
 
-    pub(super) fn gen_pins(&self, color: Color) -> Vec<Bitboard> {
-        let mut p: Vec<Bitboard> = Vec::new();
-        let king = Piece::Filled(PieceType::King, color);
-        let initial = self[king];
-        let def = self.pieces_by_color(color) & !initial;
-        // Necessary for when assembling board and king isn't there yet
-        if initial == 0 {
-            return p;
+    pub(super) fn update_pins_and_checks(&mut self, color: Color) {
+        if !self.king_exists(color) {
+            self.pins[color as usize] = 0;
+            self.checks[color as usize] = !0;
+            return;
         }
+        let mut p: Bitboard = 0;
+        let mut c: Bitboard = !0;
+        let initial = self.king(color).mask();
+        let def = self.pieces_by_color(color) & !initial;
         let free = self[Piece::Empty];
-        let dirs = [
-            Dir::North,
-            Dir::NorEast,
-            Dir::East,
-            Dir::SouEast,
-            Dir::South,
-            Dir::SouWest,
-            Dir::West,
-            Dir::NorWest,
-        ];
-        // Need to handle when EP is pinned, but I don't keep track of ep target square or move
-        // history here, both of which would be necessary to do it properly...
-        for d in dirs {
+
+        for d in ALL_DIRS {
             let filter = d.mask();
             let cap = self[Piece::Filled(d.piece_type(), !color)]
                 | self[Piece::Filled(PieceType::Queen, !color)];
-            let pin = pins(initial, free & filter, cap & filter, def & filter, d);
-            if pin != 0 {
-                p.push(pin);
+            let (bitboard, is_pin) = pins(initial, free & filter, cap & filter, def & filter, d);
+            if is_pin {
+                p |= bitboard;
+            } else {
+                c &= bitboard;
             }
         }
-        p
+        
+        let pawn_attacks = self.pawn_attacks(initial, color) & self[Piece::Filled(PieceType::Pawn, !color)];
+        if pawn_attacks != 0 {
+            c &= pawn_attacks;
+        }
+        
+        let knight_attacks = self.knight_moves(initial) & self[Piece::Filled(PieceType::Knight, !color)];
+        if knight_attacks != 0 {
+            c &= knight_attacks;
+        }
+
+
+        self.pins[color as usize] = p;
+        self.checks[color as usize] = c;
     }
 }
 
@@ -208,14 +213,18 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) -> Bitboard
     output
 }
 
-fn pins(initial: Bitboard, free: Bitboard, cap: Bitboard, def: Bitboard, dir: Dir) -> Bitboard {
+fn pins(initial: Bitboard, free: Bitboard, cap: Bitboard, mut def: Bitboard, dir: Dir) -> (Bitboard, bool) {
     let mut output = 0u64;
     let mut pass = 1;
     let mut calc_end = |x: u64| {
         if x & def > 0 {
             pass -= 1;
         }
-        x & (free | def)
+        let new_end = x & (free | def);
+        if pass == 0 {
+            def = 0;
+        }
+        new_end
     };
     let mut mv = dir.shift(initial);
     let mut end = calc_end(mv);
@@ -232,9 +241,9 @@ fn pins(initial: Bitboard, free: Bitboard, cap: Bitboard, def: Bitboard, dir: Di
             hit = true;
         }
     }
-    if hit && pass == 0 {
-        output
+    if hit {
+        (output, pass == 0)
     } else {
-        0
+        (!0, false)
     }
 }

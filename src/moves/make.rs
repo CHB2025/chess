@@ -21,20 +21,7 @@ impl Board {
         if !moves.contains(&mv) {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
         }
-        // Castle over/out of check
-        //if piece.piece_type() == Some(PieceType::King)
-        //    && mv.dest.index().abs_diff(mv.origin.index()) == 2
-        //    && (self.is_attacked(
-        //        Square(mv.dest.index().max(mv.origin.index()) - 1),
-        //        !self.color_to_move,
-        //    ) || self.is_attacked(mv.origin, !self.color_to_move))
-        //{
-        //    return Err(BoardError::new(
-        //        ErrorKind::InvalidInput,
-        //        "Castle over check",
-        //    ));
-        //}
-        //Move is valid, and legal
+       //Move is valid, and legal
 
         let is_ep = if let Some(e) = self.ep_target {
             e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move)
@@ -132,23 +119,6 @@ impl Board {
             }
         }
         self.increment_hash(move_state, piece);
-
-        // check if king is in check
-        // self.color_to_move has already been switched
-        // What if there is no king on the board? Will that case ever arise?
-        // Leaving expect to panic if this ever happens
-        // let king: Square = (63
-        //     - self.position[Piece::Filled(PieceType::King, !self.color_to_move)].leading_zeros()
-        //         as u8)
-        //     .try_into()
-        //     .expect("Unable to test check. Maybe missing king");
-        //if self.position.in_check(!self.color_to_move) {
-        //    self.unmake();
-        //    return Err(BoardError::new(
-        //        ErrorKind::InvalidInput,
-        //        "Moving into check",
-        //    ));
-        //}
         Ok(())
     }
 
