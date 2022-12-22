@@ -37,8 +37,8 @@ fn perft_with_map(
     }
     if let Entry::Occupied(e) = tps.entry(board.get_hash()).or_default().entry(depth) {
         return *e.get();
-    }
-    let value = if depth == 0 {
+    };
+    let value = if depth == 1 {
         board.moves().len()
     } else {
         board

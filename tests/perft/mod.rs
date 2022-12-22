@@ -43,14 +43,11 @@ fn perft_with_map(
         board
             .moves()
             .into_iter()
-            .filter_map(|m| {
-                if board.make(m).is_ok() {
-                    let t = Some(perft_with_map(board, depth - 1, tps));
-                    board.unmake();
-                    t
-                } else {
-                    None
-                }
+            .map(|m| {
+                board.make(m).unwrap();
+                let t = perft_with_map(board, depth - 1, tps);
+                board.unmake();
+                t
             })
             .sum()
     };

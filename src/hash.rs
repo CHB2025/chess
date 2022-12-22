@@ -1,11 +1,14 @@
-use rand::{self, RngCore, SeedableRng};
+use rand::{self, rngs::StdRng, RngCore, SeedableRng};
 use std::hash::Hash;
 
 use crate::piece::Color;
 use crate::{piece::Piece, Board};
 
 pub(crate) const MAX_PIECE_INDEX: usize = 767;
-const SEED: u64 = 0xd635879da32ff6c5;
+const SEED: [u8; 32] = [
+    148, 94, 120, 126, 227, 253, 25, 236, 41, 96, 70, 10, 53, 197, 51, 231, 204, 44, 136, 210, 102,
+    129, 128, 230, 251, 207, 200, 134, 166, 125, 236, 147,
+];
 
 impl Hash for Board {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -15,7 +18,7 @@ impl Hash for Board {
 
 impl Board {
     pub(crate) fn initialize_hash(&mut self) {
-        let mut rng = rand::rngs::StdRng::seed_from_u64(SEED);
+        let mut rng = StdRng::from_seed(SEED);
         for i in 0..self.hash_keys.len() {
             self.hash_keys[i] = rng.next_u64();
         }
@@ -40,12 +43,10 @@ impl Board {
             next_index += 1;
         }
         if let Some(pos) = self.ep_target {
-            let col = (pos.index() & 0b111) as usize;
-            h ^= self.hash_keys[next_index + col - 1]
+            h ^= self.hash_keys[next_index + pos.file() as usize];
         }
         self.hash = h;
     }
-
 
     pub fn get_hash(&self) -> u64 {
         self.hash
@@ -53,10 +54,7 @@ impl Board {
 }
 
 pub(crate) fn hash_index(p: Piece, index: usize) -> usize {
-    let p_index = p.index();
-    // Because piece is only from 0-6 it needs to be first to minimize space needed
-    //       Piece type               +1 if black               Location
-    (p_index << 6) + index
+    (p.index() << 6) + index
 }
 
 #[cfg(test)]

@@ -124,38 +124,23 @@ impl Board {
         } else {
             Dir::South
         };
-        let mut free = self.position[Piece::Empty];
+        let free = self.position[Piece::Empty];
 
         let pins = self.position.pins_on_color(color);
         let unpinned_pieces = !pins & initial;
         let pinned_pieces = pins & initial;
         // Single push
         moves_with_promotions(mvs, unpinned_pieces, 0, free, color, dir.offset());
-        let mut pp = pinned_pieces;
-        while pp != 0 {
-            let square = Square(63 - pp.leading_zeros() as u8);
-            pp &= !square.mask();
-            let pin = self.position.pin_on_square(square).unwrap();
-            if pin.dir == dir {
-                moves_with_promotions(
-                    mvs,
-                    square.mask(),
-                    0,
-                    free & pin.mask(),
-                    color,
-                    dir.offset(),
-                );
-            }
-        }
 
         //Double push
-        free &= if color == Color::White {
+        let dp_free = free & if color == Color::White {
             (free >> 8) & 0xff00000000
         } else {
             (free << 8) & 0xff000000
         };
-        moves(mvs, unpinned_pieces, 0, free, 2 * dir.offset());
+        moves(mvs, unpinned_pieces, 0, dp_free, 2 * dir.offset());
         let mut pp = pinned_pieces;
+        // Pinned double and single push
         while pp != 0 {
             let square = Square(63 - pp.leading_zeros() as u8);
             pp &= !square.mask();
@@ -165,6 +150,14 @@ impl Board {
                 square.mask(),
                 0,
                 free & pin.mask(),
+                color,
+                dir.offset(),
+            );
+            moves_with_promotions(
+                mvs,
+                square.mask(),
+                0,
+                dp_free & pin.mask(),
                 color,
                 2 * dir.offset(),
             );

@@ -131,12 +131,6 @@ impl Board {
             Piece::Empty => self[ms.mv.dest],
             Piece::Filled(_, color) => Piece::Filled(PieceType::Pawn, color),
         };
-        if piece == Piece::Empty {
-            println!("Panic!!!! Piece is empty");
-            println!("Undoing move from {} to {}\nCapture: {}\nPromotion: {}", ms.mv.origin, ms.mv.dest, ms.capture, ms.mv.promotion);
-            println!("{:?}", self);
-
-        }
         self.increment_hash(ms, piece);
         if ms.mv.promotion != Piece::Empty {
             self.position.put(piece, ms.mv.dest);
@@ -175,6 +169,9 @@ impl Board {
         }
 
         // Resetting metadata
+        if self.color_to_move == Color::White {
+            self.fullmove -= 1;
+        }
         self.color_to_move = !self.color_to_move;
         self.castle = ms.castle;
         self.ep_target = ms.ep_target;
@@ -222,22 +219,21 @@ impl Board {
             self.hash ^= self.hash_keys[hash_index(rook, r_dest.into())];
         }
         let mut next_index = MAX_PIECE_INDEX + 1;
+        // Changing sides
         self.hash ^= self.hash_keys[next_index];
         next_index += 1;
 
-        for (i, c) in self.castle.iter().enumerate() {
-            if *c != ms.castle[i] {
+        for i in 0..4 {
+            if self.castle[i] != ms.castle[i] {
                 self.hash ^= self.hash_keys[next_index];
-            }
+            } 
             next_index += 1;
         }
         if let Some(pos) = ms.ep_target {
-            let col = (pos.index() & 0b111) as usize;
-            self.hash ^= self.hash_keys[next_index + col - 1];
+            self.hash ^= self.hash_keys[next_index + pos.file() as usize];
         }
         if let Some(pos) = self.ep_target {
-            let col = (pos.index() & 0b111) as usize;
-            self.hash ^= self.hash_keys[next_index + col - 1]
+            self.hash ^= self.hash_keys[next_index + pos.file() as usize]
         }
     }
 }
