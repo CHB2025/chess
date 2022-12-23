@@ -12,7 +12,7 @@ impl Board {
 
         output += self.position.to_string().as_str();
 
-        output += &format!(" {}", self.color_to_move);
+        output += &format!(" {}", self.color_to_move());
 
         if self.castle.iter().all(|x| !x) {
             output += " -";
@@ -57,7 +57,6 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     let mut board = Board {
         position: Position::empty(),
-        color_to_move: Color::White,
         castle: [false; 4],
         ep_target: None,
         halfmove: 0,
@@ -82,11 +81,12 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
             board.position.put(p, square);
         }
     }
+    board.position.update_attacks_and_pins();
 
     // Setting white_to_move
     let stm = sections.next().ok_or_else(short_err)?;
     if stm.to_lowercase() != "w" {
-        board.color_to_move = Color::Black;
+        board.position.switch_color_to_move();
     }
 
     // Castling rights

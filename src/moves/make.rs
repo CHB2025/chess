@@ -10,7 +10,7 @@ use crate::{
 impl Board {
     pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
         let piece = self[mv.origin];
-        if piece.color() != Some(self.color_to_move) {
+        if piece.color() != Some(self.color_to_move()) {
             // Piece is not empty and matches color
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
@@ -24,21 +24,21 @@ impl Board {
        //Move is valid, and legal
 
         let is_ep = if let Some(e) = self.ep_target {
-            e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move)
+            e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move())
         } else {
             false
         };
 
         let mut capture = self.position.r#move(mv.origin, mv.dest);
         if is_ep {
-            capture = Piece::Filled(PieceType::Pawn, !self.color_to_move);
+            capture = Piece::Filled(PieceType::Pawn, !self.color_to_move());
             let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
             self.position.clear(index);
         }
         if mv.promotion != Piece::Empty {
             self.position.put(mv.promotion, mv.dest);
         }
-        let is_castle = Piece::Filled(PieceType::King, self.color_to_move) == piece
+        let is_castle = Piece::Filled(PieceType::King, self.color_to_move()) == piece
             && mv.dest.index().abs_diff(mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
         if is_castle {
@@ -64,7 +64,7 @@ impl Board {
 
         // Updating metadata
         self.move_history.push(move_state);
-        self.color_to_move = !self.color_to_move;
+        self.position.switch_color_to_move();
         if piece.color() == Some(Color::Black) {
             self.fullmove += 1
         }
@@ -169,10 +169,10 @@ impl Board {
         }
 
         // Resetting metadata
-        if self.color_to_move == Color::White {
+        if self.color_to_move() == Color::White {
             self.fullmove -= 1;
         }
-        self.color_to_move = !self.color_to_move;
+        self.position.switch_color_to_move();
         self.castle = ms.castle;
         self.ep_target = ms.ep_target;
         self.halfmove = ms.halfmove;
@@ -204,7 +204,7 @@ impl Board {
             && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
         if is_castle {
-            let rook = Piece::Filled(PieceType::Rook, !self.color_to_move);
+            let rook = Piece::Filled(PieceType::Rook, !self.color_to_move());
             let r_origin = if is_ks_castle {
                 ms.mv.origin.index() & !0b111
             } else {

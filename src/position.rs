@@ -13,9 +13,10 @@ pub type Bitboard = u64;
 #[derive(Clone)]
 pub struct Position {
     bitboards: [Bitboard; 13],
-    attacks: [Bitboard; 2],
-    pins: [Bitboard; 2],
-    checks: [Bitboard; 2],
+    attacks: Bitboard,
+    pins: Bitboard,
+    checks: Bitboard,
+    color_to_move: Color,
     pieces: [Piece; 64],
 }
 
@@ -38,9 +39,10 @@ impl default::Default for Position {
                 0xff << 8,
                 0xffffffff << 16,
             ],
-            attacks: [0xff << 40, 0xff << 16],
-            pins: [0, 0],
-            checks: [!0, !0],
+            attacks: 0xff << 40,
+            pins: 0,
+            checks: !0,
+            color_to_move: Color::White,
             pieces: [
                 Piece::Filled(PieceType::Rook, Color::Black),
                 Piece::Filled(PieceType::Knight, Color::Black),
@@ -191,18 +193,17 @@ impl Position {
     pub fn empty() -> Self {
         Self {
             bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
-            attacks: [0, 0],
-            pins: [0, 0],
-            checks: [!0, !0],
+            attacks: 0,
+            pins: 0,
+            checks: !0,
+            color_to_move: Color::White,
             pieces: [Piece::Empty; 64],
         }
     }
 
-    fn update_attacks_and_pins(&mut self) {
-        self.update_pins_and_checks(Color::White);
-        self.update_pins_and_checks(Color::Black);
-        self.attacks[0] = self.gen_attacks(Color::White);
-        self.attacks[1] = self.gen_attacks(Color::Black);
+    pub fn update_attacks_and_pins(&mut self) {
+        self.update_pins_and_checks();
+        self.attacks = self.gen_attacks(!self.color_to_move);
     }
 
     // Doesn't update attacks or pins
@@ -218,17 +219,12 @@ impl Position {
 
     /// Puts the provided piece in the provided square. Returns the piece that was replaced
     pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
-        let replaced = self.internal_put(piece, square);
-        self.update_attacks_and_pins();
-
-        replaced
+        self.internal_put(piece, square)
     }
 
     /// Clears the provided square. Returns the piece that previously held that position
     pub fn clear(&mut self, square: Square) -> Piece {
-        let removed = self.internal_put(Piece::Empty, square);
-        self.update_attacks_and_pins();
-        removed
+        self.internal_put(Piece::Empty, square)
     }
 
     /// Moves the piece at `from` to `to`. Returns the piece that was replaced at `to`.
@@ -238,9 +234,7 @@ impl Position {
 
     pub fn move_replace(&mut self, from: Square, to: Square, replacement: Piece) -> Piece {
         let piece = self.internal_put(replacement, from);
-        let capture = self.internal_put(piece, to);
-        self.update_attacks_and_pins();
-        capture
+        self.internal_put(piece, to)
     }
 
     /// Returns the square occupied by the king of the provided color.
@@ -263,15 +257,15 @@ impl Position {
         range.step_by(2).fold(0, |team, i| team | self.bitboards[i])
     }
 
-    pub fn attacks_by_color(&self, color: Color) -> Bitboard {
-        self.attacks[color as usize]
+    pub fn attacks(&self) -> Bitboard {
+        self.attacks
     }
 
     pub fn pin_on_square(&self, square: Square) -> Option<Ray> {
         let piece = self[square];
         match piece {
             Piece::Filled(_, color) => {
-                if self.pins[color as usize] & square.mask() == square.mask() {
+                if self.pins & square.mask() == square.mask() {
                     Ray::from(self.king(color), square)
                 } else {
                     None
@@ -280,14 +274,21 @@ impl Position {
             Piece::Empty => None,
         }
     }
-    pub fn pins_on_color(&self, color: Color) -> Bitboard {
-        self.pins[color as usize]
+    pub fn color_to_move(&self) -> Color {
+        self.color_to_move
     }
-    pub fn check_restrictions(&self, color: Color) -> Bitboard {
-        self.checks[color as usize]
+    pub fn switch_color_to_move(&mut self) {
+        self.color_to_move = !self.color_to_move;
+        self.update_attacks_and_pins();
+    }
+    pub fn pins(&self) -> Bitboard {
+        self.pins
+    }
+    pub fn check_restrictions(&self) -> Bitboard {
+        self.checks
     }
 
-    pub fn in_check(&self, color: Color) -> bool {
-        self.checks[color as usize] != !0
+    pub fn in_check(&self) -> bool {
+        self.checks != !0
     }
 }

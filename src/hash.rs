@@ -32,7 +32,7 @@ impl Board {
         }
         // p on square 63 would be 767
         let mut next_index = MAX_PIECE_INDEX + 1;
-        if self.color_to_move == Color::Black {
+        if self.color_to_move() == Color::Black {
             h ^= self.hash_keys[next_index];
         }
         next_index += 1;

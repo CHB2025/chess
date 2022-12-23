@@ -1,9 +1,7 @@
 use std::time::Instant;
 
 use chess_board::Board;
-use perft::perft;
 
-mod perft;
 
 struct PerftResult {
     name: String,
@@ -60,7 +58,7 @@ fn test_perft() {
         let mut b = Board::from_fen(&test.fen).unwrap();
         for (i, depth) in test.depth.iter().enumerate() {
             println!("Testing {} to depth {}", test.name, depth);
-            assert_eq!(test.nodes[i], perft(&mut b, *depth));
+            assert_eq!(test.nodes[i], b.perft(*depth));
         }
     }
 }
@@ -70,7 +68,7 @@ fn test_kiwipete5() {
     let positions = perft_positions();
     let mut b = Board::from_fen(&positions[1].fen).unwrap();
     let now = Instant::now();
-    perft(&mut b, 5);
+    b.perft(5);
     let elapsed = now.elapsed();
     println!(
         "Running perft with depth 5 on kiwipete took {} milliseconds.",
@@ -82,7 +80,7 @@ fn test_kiwipete5() {
 fn test_initial6() {
     let mut b = Board::new();
     let now = Instant::now();
-    perft(&mut b, 6);
+    b.perft(6);
     let elapsed = now.elapsed();
     println!(
         "Running perft with depth 6 on the initial position took {} milliseconds",

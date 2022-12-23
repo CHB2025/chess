@@ -12,6 +12,7 @@ pub mod error;
 pub mod fen;
 pub mod hash;
 pub mod moves;
+pub mod perft;
 pub mod piece;
 pub(crate) mod position;
 pub mod ray;
@@ -20,7 +21,6 @@ pub mod square;
 #[derive(Clone)]
 pub struct Board {
     position: Position,
-    color_to_move: Color,
     castle: [bool; 4],
     ep_target: Option<Square>,
     halfmove: u32,
@@ -57,7 +57,6 @@ impl default::Default for Board {
     fn default() -> Self {
         let mut response = Self {
             position: Position::default(),
-            color_to_move: Color::White,
             castle: [true; 4],
             ep_target: None,
             halfmove: 0,
@@ -85,10 +84,10 @@ impl Board {
     }
 
     pub fn is_white_to_move(&self) -> bool {
-        self.color_to_move == Color::White
+        self.position.color_to_move() == Color::White
     }
     pub fn color_to_move(&self) -> Color {
-        self.color_to_move
+        self.position.color_to_move()
     }
 }
 

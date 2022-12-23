@@ -4,10 +4,6 @@ use chess_board::error::BoardError;
 use chess_board::moves::Move;
 use chess_board::Board;
 
-use self::perft::divided_perft;
-
-pub mod perft;
-
 fn main() -> io::Result<()> {
     let mut chess = Board::default();
 
@@ -28,22 +24,13 @@ fn main() -> io::Result<()> {
 fn handle_command(chess: &mut Board, cmd: &str, arg: &str) -> Result<(), BoardError> {
     match cmd.to_lowercase().as_str() {
         "make" => {
-            let mv: Move = match arg.trim().parse() {
-                Ok(m) => m,
-                Err(e) => {
-                    println!("{e}");
-                    return Ok(());
-                }
-            };
-            match chess.make(mv) {
-                Ok(_) => println!("Valid Move!"),
-                Err(e) => println!("Illegal move: {}", e),
-            }
+            let mv: Move = arg.trim().parse()?;
+            chess.make(mv)?;
         },
         "unmake" => chess.unmake(),
         "perft" => {
             let depth: usize = arg.parse()?;
-            divided_perft(chess, depth);
+            chess.divided_perft(depth);
         },
         "fen" => {
             println!("Received Fen: \"{}\"", arg);

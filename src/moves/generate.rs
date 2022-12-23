@@ -5,10 +5,7 @@ use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board
 
 impl Board {
     pub fn moves(&self) -> Vec<Move> {
-        self.moves_for_color(self.color_to_move)
-    }
-
-    pub fn moves_for_color(&self, color: Color) -> Vec<Move> {
+        let color = self.position.color_to_move();
         let mut mvs = Vec::new();
         self.pawn_moves(
             &mut mvs,
@@ -42,6 +39,9 @@ impl Board {
         let piece = self.position[square];
         let initial = square.mask();
         if let Piece::Filled(kind, color) = piece {
+            if color != self.position.color_to_move() {
+                return mvs;
+            }
             match kind {
                 PieceType::King => self.king_moves(&mut mvs, color),
                 PieceType::Queen => self.queen_moves(&mut mvs, initial, color),
@@ -56,7 +56,7 @@ impl Board {
     }
 
     pub fn filter_moves_by_check(&self, mvs: &mut Vec<Move>, color: Color) {
-        let check_restriction = self.position.check_restrictions(color);
+        let check_restriction = self.position.check_restrictions();
         let ep_pawn = if let Some(sq) = self.ep_target {
             if sq.rank() == 2 {
                 Square(24 + sq.file())
@@ -77,7 +77,7 @@ impl Board {
     }
 
     fn king_moves(&self, mvs: &mut Vec<Move>, color: Color) {
-        let attacks = self.position.attacks_by_color(!color);
+        let attacks = self.position.attacks();
         let free = (self.position[Piece::Empty] | self.position.pieces_by_color(!color)) & !attacks;
         let initial = self.position[Piece::Filled(PieceType::King, color)];
 
@@ -126,7 +126,7 @@ impl Board {
         };
         let free = self.position[Piece::Empty];
 
-        let pins = self.position.pins_on_color(color);
+        let pins = self.position.pins();
         let unpinned_pieces = !pins & initial;
         let pinned_pieces = pins & initial;
         // Single push
@@ -291,7 +291,7 @@ impl Board {
             return;
         };
 
-        let unpinned_pieces = initial & !self.position.pins_on_color(color);
+        let unpinned_pieces = initial & !self.position.pins();
         for (d, mask) in dirs {
             moves(mvs, unpinned_pieces, 0, cap & mask, d);
         }
@@ -307,7 +307,7 @@ impl Board {
             return;
         }
 
-        let pins = self.position.pins_on_color(color);
+        let pins = self.position.pins();
         let unpinned_pieces = initial & !pins;
         let mut pinned_pieces: Bitboard = initial & pins;
 
@@ -351,7 +351,7 @@ impl Board {
             return;
         }
 
-        let pins = self.position.pins_on_color(color);
+        let pins = self.position.pins();
         let unpinned_pieces = initial & !pins;
         let mut pinned_pieces = initial & pins;
 
