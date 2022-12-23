@@ -1,10 +1,11 @@
 use crate::{
+    dir::Dir,
     error::{BoardError, ErrorKind},
     hash::{hash_index, MAX_PIECE_INDEX},
     moves::{Move, MoveState},
     piece::{Color, Piece, PieceType},
     square::Square,
-    Board, dir::Dir,
+    Board,
 };
 
 impl Board {
@@ -21,7 +22,7 @@ impl Board {
         if !moves.contains(&mv) {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
         }
-       //Move is valid, and legal
+        //Move is valid, and legal
 
         let is_ep = if let Some(e) = self.ep_target {
             e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move())
@@ -48,7 +49,7 @@ impl Board {
                 mv.origin.index() | 0b111
             };
             let r_dest = if is_ks_castle {
-                r_origin as i32 + 2 * Dir::West.offset() 
+                r_origin as i32 + 2 * Dir::West.offset()
             } else {
                 r_origin as i32 + 3 * Dir::East.offset()
             } as u8;
@@ -145,7 +146,7 @@ impl Board {
         };
 
         if is_ep {
-            let bit_index = ((ms.mv.origin.index() >> 3) << 3) | (ms.mv.dest.index() & 0b111);
+            let bit_index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
             let sqr = Square(bit_index);
             self.position.put(ms.capture, sqr);
             self.position.clear(ms.mv.dest);
@@ -226,7 +227,7 @@ impl Board {
         for i in 0..4 {
             if self.castle[i] != ms.castle[i] {
                 self.hash ^= self.hash_keys[next_index];
-            } 
+            }
             next_index += 1;
         }
         if let Some(pos) = ms.ep_target {
@@ -247,8 +248,8 @@ mod tests {
 
     impl Board {
         fn is_valid(&self) -> bool {
-            let white_pieces = self.position.pieces_by_color(Color::White);
-            let black_pieces = self.position.pieces_by_color(Color::White);
+            let white_pieces = self.position[Color::White];
+            let black_pieces = self.position[Color::Black];
             let empty = self.position[Piece::Empty];
             white_pieces & black_pieces == 0
                 && white_pieces & empty == 0
@@ -286,15 +287,6 @@ mod tests {
             println!("Board after making move {}:\n{}", m, board);
             println!("Board is valid: {}", board.is_valid());
         }
-        // println!("Possible Moves");
-        // for m in board.pseudolegal_moves(board.white_to_move) {
-        //     print!("{m}, ");
-        // }
-        // println!();
-        // println!(
-        //     "{} possibilities",
-        //     board.pseudolegal_moves(board.white_to_move).len()
-        // );
         for mv in mvs.iter().rev() {
             board.unmake();
             println!("Board after unmaking {}:\n{}", mv, board);

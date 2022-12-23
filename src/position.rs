@@ -1,11 +1,12 @@
 use core::fmt;
-use std::{default, ops};
+use std::default;
 
 use crate::piece::{Color, Piece, PieceType};
 use crate::ray::Ray;
 use crate::square::Square;
 
 pub mod attacks;
+pub mod index;
 
 pub type Bitboard = u64;
 
@@ -13,6 +14,7 @@ pub type Bitboard = u64;
 #[derive(Clone)]
 pub struct Position {
     bitboards: [Bitboard; 13],
+    colors: [Bitboard; 2],
     attacks: Bitboard,
     pins: Bitboard,
     checks: Bitboard,
@@ -39,6 +41,7 @@ impl default::Default for Position {
                 0xff << 8,
                 0xffffffff << 16,
             ],
+            colors: [ 0xffff << 40, 0xffff ],
             attacks: 0xff << 40,
             pins: 0,
             checks: !0,
@@ -132,67 +135,12 @@ impl fmt::Debug for Position {
         write!(f, "{output}")
     }
 }
-
-// Public indexing operations
-impl ops::Index<Piece> for Position {
-    type Output = Bitboard;
-
-    fn index(&self, index: Piece) -> &Self::Output {
-        &self.bitboards[index.index()]
-    }
-}
-
-impl ops::Index<Square> for Position {
-    type Output = Piece;
-
-    fn index(&self, index: Square) -> &Self::Output {
-        &self.pieces[index.index() as usize]
-    }
-}
-
-impl IntoIterator for &Position {
-    type Item = Piece;
-
-    type IntoIter = std::array::IntoIter<Self::Item, 64>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.pieces.into_iter()
-    }
-}
-
-// Re-implementing indexing on the underlying arrays rather than the struct itself
-// so that the mutable indexing is not available outside the mod
-impl ops::Index<Piece> for [Bitboard; 13] {
-    type Output = Bitboard;
-
-    fn index(&self, index: Piece) -> &Self::Output {
-        &self[index.index()]
-    }
-}
-impl ops::IndexMut<Piece> for [Bitboard; 13] {
-    fn index_mut(&mut self, index: Piece) -> &mut Self::Output {
-        &mut self[index.index()]
-    }
-}
-
-impl<T> ops::Index<Square> for [T; 64] {
-    type Output = T;
-
-    fn index(&self, index: Square) -> &Self::Output {
-        &self[index.index() as usize]
-    }
-}
-impl<T> ops::IndexMut<Square> for [T; 64] {
-    fn index_mut(&mut self, index: Square) -> &mut Self::Output {
-        &mut self[index.index() as usize]
-    }
-}
-
 impl Position {
     /// Creates a new, completely empty board representation
     pub fn empty() -> Self {
         Self {
             bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
+            colors: [0, 0],
             attacks: 0,
             pins: 0,
             checks: !0,
@@ -207,24 +155,26 @@ impl Position {
     }
 
     // Doesn't update attacks or pins
-    fn internal_put(&mut self, piece: Piece, square: Square) -> Piece {
+    pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
         let replaced = self.pieces[square];
         self.pieces[square] = piece;
         let map = 1 << square.index();
         self.bitboards[replaced] &= !map;
+        if let Some(color) = replaced.color() {
+            self.colors[color] &= !map;
+        }
         self.bitboards[piece] |= map;
+        if let Some(color) = piece.color() {
+            self.colors[color] |= map;
+        }
 
         replaced
     }
 
-    /// Puts the provided piece in the provided square. Returns the piece that was replaced
-    pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
-        self.internal_put(piece, square)
-    }
 
     /// Clears the provided square. Returns the piece that previously held that position
     pub fn clear(&mut self, square: Square) -> Piece {
-        self.internal_put(Piece::Empty, square)
+        self.put(Piece::Empty, square)
     }
 
     /// Moves the piece at `from` to `to`. Returns the piece that was replaced at `to`.
@@ -233,8 +183,8 @@ impl Position {
     }
 
     pub fn move_replace(&mut self, from: Square, to: Square, replacement: Piece) -> Piece {
-        let piece = self.internal_put(replacement, from);
-        self.internal_put(piece, to)
+        let piece = self.put(replacement, from);
+        self.put(piece, to)
     }
 
     /// Returns the square occupied by the king of the provided color.
@@ -249,12 +199,6 @@ impl Position {
 
     pub fn king_exists(&self, color: Color) -> bool {
         self[Piece::Filled(PieceType::King, color)] != 0
-    }
-
-    pub fn pieces_by_color(&self, color: Color) -> Bitboard {
-        let range = Piece::Filled(PieceType::King, color).index()
-            ..=Piece::Filled(PieceType::Pawn, color).index();
-        range.step_by(2).fold(0, |team, i| team | self.bitboards[i])
     }
 
     pub fn attacks(&self) -> Bitboard {

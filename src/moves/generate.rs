@@ -78,7 +78,7 @@ impl Board {
 
     fn king_moves(&self, mvs: &mut Vec<Move>, color: Color) {
         let attacks = self.position.attacks();
-        let free = (self.position[Piece::Empty] | self.position.pieces_by_color(!color)) & !attacks;
+        let free = (self.position[Piece::Empty] | self.position[!color]) & !attacks;
         let initial = self.position[Piece::Filled(PieceType::King, color)];
 
         for d in ALL_DIRS {
@@ -193,7 +193,7 @@ impl Board {
         } else {
             0
         };
-        let cap = self.position.pieces_by_color(!color) | ep_map;
+        let cap = self.position[!color] | ep_map;
 
         let left_attack = if color == Color::White {
             Dir::NorWest
@@ -286,7 +286,7 @@ impl Board {
                 Dir::NorWest.mask(),
             ),
         ];
-        let cap = self.position.pieces_by_color(!color) | self.position[Piece::Empty];
+        let cap = self.position[!color] | self.position[Piece::Empty];
         if cap == 0 {
             return;
         };
@@ -301,7 +301,7 @@ impl Board {
     // Otherwise will prevent sliding moves from getting to where they can stop check
     fn rook_moves(&self, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
         let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
-        let cap = self.position.pieces_by_color(!color);
+        let cap = self.position[!color];
         let free = self.position[Piece::Empty];
         if free == 0 && cap == 0 {
             return;
@@ -345,7 +345,7 @@ impl Board {
     }
     fn bishop_moves(&self, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
         let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
-        let cap = self.position.pieces_by_color(!color);
+        let cap = self.position[!color];
         let free = self.position[Piece::Empty];
         if free == 0 && cap == 0 {
             return;

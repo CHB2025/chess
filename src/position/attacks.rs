@@ -18,8 +18,7 @@ impl Position {
         output |= self.king_attacks(self[Piece::Filled(PieceType::King, color)]);
         output |= self.bishop_moves(self[Piece::Filled(PieceType::Bishop, color)] | queen, color);
         output |= self.rook_moves(self[Piece::Filled(PieceType::Rook, color)] | queen, color);
-        output |= self.knight_moves(self[Piece::Filled(PieceType::Knight, color)]);
-        output
+        output | self.knight_moves(self[Piece::Filled(PieceType::Knight, color)])
     }
 
     fn pawn_attacks(&self, initial: Bitboard, for_color: Color) -> Bitboard {
@@ -98,7 +97,7 @@ impl Position {
         let mut p: Bitboard = 0;
         let mut c: Bitboard = !0;
         let initial = self.king(color).mask();
-        let def = self.pieces_by_color(color) & !initial;
+        let def = self[color] & !initial;
         let free = self[Piece::Empty];
         let queen = self[Piece::Filled(PieceType::Queen, !color)];
 
