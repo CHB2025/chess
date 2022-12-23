@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
-use crate::piece::{PieceType, Color};
+use crate::piece::{PieceKind, Color};
 use crate::position::Position;
 use crate::{piece::Piece, square::Square, Board};
 use regex::Regex;
@@ -94,8 +94,8 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     for c in castling.chars() {
         let p: Piece = c.try_into()?;
         let mut i = match p {
-            Piece::Filled(PieceType::King, _) => 0,
-            Piece::Filled(PieceType::Queen, _) => 1,
+            Piece::Filled(PieceKind::King, _) => 0,
+            Piece::Filled(PieceKind::Queen, _) => 1,
             _ => continue,
         };
         if let Piece::Filled(_, Color::Black) = p {

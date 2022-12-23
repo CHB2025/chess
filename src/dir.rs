@@ -1,4 +1,4 @@
-use crate::piece::PieceType;
+use crate::piece::PieceKind;
 use crate::position::Bitboard;
 
 const ALL: u64 = !0;
@@ -78,11 +78,11 @@ impl Dir {
 
     /// Returns the piece (either rook or bishop) that moves in this direction. Ignores Queen,
     /// which moves in all directions, and King, Knight, and Pawn, which have unique movement.
-    pub fn piece_type(&self) -> PieceType {
+    pub fn piece_kind(&self) -> PieceKind {
         if self.offset().abs() == 8 || self.offset().abs() == 1 {
-            PieceType::Rook
+            PieceKind::Rook
         } else {
-            PieceType::Bishop
+            PieceKind::Bishop
         }
     }
 }

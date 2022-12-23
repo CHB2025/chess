@@ -1,6 +1,6 @@
 use crate::dir::{Dir, ALL_DIRS};
 use crate::piece::Piece;
-use crate::piece::{Color, PieceType};
+use crate::piece::Color;
 
 use super::{Bitboard, Position};
 
@@ -13,12 +13,12 @@ const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 impl Position {
     // Only for determining check
     pub(super) fn gen_attacks(&self, color: Color) -> Bitboard {
-        let queen = self[Piece::Filled(PieceType::Queen, color)];
-        let mut output = self.pawn_attacks(self[Piece::Filled(PieceType::Pawn, color)], color);
-        output |= self.king_attacks(self[Piece::Filled(PieceType::King, color)]);
-        output |= self.bishop_moves(self[Piece::Filled(PieceType::Bishop, color)] | queen, color);
-        output |= self.rook_moves(self[Piece::Filled(PieceType::Rook, color)] | queen, color);
-        output | self.knight_moves(self[Piece::Filled(PieceType::Knight, color)])
+        let queen = self[Piece::queen(color)];
+        let mut output = self.pawn_attacks(self[Piece::pawn(color)], color);
+        output |= self.king_attacks(self[Piece::king(color)]);
+        output |= self.bishop_moves(self[Piece::bishop(color)] | queen, color);
+        output |= self.rook_moves(self[Piece::rook(color)] | queen, color);
+        output | self.knight_moves(self[Piece::knight(color)])
     }
 
     fn pawn_attacks(&self, initial: Bitboard, for_color: Color) -> Bitboard {
@@ -40,7 +40,7 @@ impl Position {
     }
 
     fn bishop_moves(&self, initial: Bitboard, color: Color) -> Bitboard {
-        let f = self[Piece::Empty] | self[Piece::Filled(PieceType::King, !color)];
+        let f = self[Piece::Empty] | self[Piece::king(!color)];
         let o = !f;
 
         let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
@@ -53,7 +53,7 @@ impl Position {
     }
 
     fn rook_moves(&self, initial: Bitboard, color: Color) -> Bitboard {
-        let f = self[Piece::Empty] | self[Piece::Filled(PieceType::King, !color)];
+        let f = self[Piece::Empty] | self[Piece::king(!color)];
         let o = !f;
 
         let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
@@ -99,11 +99,11 @@ impl Position {
         let initial = self.king(color).mask();
         let def = self[color] & !initial;
         let free = self[Piece::Empty];
-        let queen = self[Piece::Filled(PieceType::Queen, !color)];
+        let queen = self[Piece::queen(!color)];
 
         for d in ALL_DIRS {
             let filter = d.mask();
-            let cap = self[Piece::Filled(d.piece_type(), !color)] | queen;
+            let cap = self[Piece::Filled(d.piece_kind(), !color)] | queen;
             let (bitboard, is_pin) = pins(initial, free & filter, cap & filter, def & filter, d);
             if is_pin {
                 p |= bitboard;
@@ -113,13 +113,13 @@ impl Position {
         }
 
         let pawn_attacks =
-            self.pawn_attacks(initial, color) & self[Piece::Filled(PieceType::Pawn, !color)];
+            self.pawn_attacks(initial, color) & self[Piece::pawn(!color)];
         if pawn_attacks != 0 {
             c &= pawn_attacks;
         }
 
         let knight_attacks =
-            self.knight_moves(initial) & self[Piece::Filled(PieceType::Knight, !color)];
+            self.knight_moves(initial) & self[Piece::knight(!color)];
         if knight_attacks != 0 {
             c &= knight_attacks;
         }

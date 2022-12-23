@@ -1,7 +1,7 @@
 use core::fmt;
 use std::default;
 
-use crate::piece::{Color, Piece, PieceType};
+use crate::piece::{Color, Piece};
 use crate::ray::Ray;
 use crate::square::Square;
 
@@ -47,46 +47,46 @@ impl default::Default for Position {
             checks: !0,
             color_to_move: Color::White,
             pieces: [
-                Piece::Filled(PieceType::Rook, Color::Black),
-                Piece::Filled(PieceType::Knight, Color::Black),
-                Piece::Filled(PieceType::Bishop, Color::Black),
-                Piece::Filled(PieceType::King, Color::Black),
-                Piece::Filled(PieceType::Queen, Color::Black),
-                Piece::Filled(PieceType::Bishop, Color::Black),
-                Piece::Filled(PieceType::Knight, Color::Black),
-                Piece::Filled(PieceType::Rook, Color::Black),
+                Piece::rook(Color::Black),
+                Piece::knight(Color::Black),
+                Piece::bishop(Color::Black),
+                Piece::king(Color::Black),
+                Piece::queen(Color::Black),
+                Piece::bishop(Color::Black),
+                Piece::knight(Color::Black),
+                Piece::rook(Color::Black),
                 // White Pawns
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
-                Piece::Filled(PieceType::Pawn, Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black),
                 // Blank rows
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 //Black Pawns
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
-                Piece::Filled(PieceType::Pawn, Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
+                Piece::pawn(Color::White),
                 // Other black pieces
-                Piece::Filled(PieceType::Rook, Color::White),
-                Piece::Filled(PieceType::Knight, Color::White),
-                Piece::Filled(PieceType::Bishop, Color::White),
-                Piece::Filled(PieceType::King, Color::White),
-                Piece::Filled(PieceType::Queen, Color::White),
-                Piece::Filled(PieceType::Bishop, Color::White),
-                Piece::Filled(PieceType::Knight, Color::White),
-                Piece::Filled(PieceType::Rook, Color::White),
+                Piece::rook(Color::White),
+                Piece::knight(Color::White),
+                Piece::bishop(Color::White),
+                Piece::king(Color::White),
+                Piece::queen(Color::White),
+                Piece::bishop(Color::White),
+                Piece::knight(Color::White),
+                Piece::rook(Color::White),
             ],
         }
     }
@@ -171,7 +171,6 @@ impl Position {
         replaced
     }
 
-
     /// Clears the provided square. Returns the piece that previously held that position
     pub fn clear(&mut self, square: Square) -> Piece {
         self.put(Piece::Empty, square)
@@ -190,7 +189,7 @@ impl Position {
     /// Returns the square occupied by the king of the provided color.
     /// Panics if the king is not on the board
     pub fn king(&self, color: Color) -> Square {
-        let bitboard = self[Piece::Filled(PieceType::King, color)];
+        let bitboard = self[Piece::king(color)];
         if bitboard == 0 {
             panic!("King is not on the board")
         }
@@ -198,7 +197,7 @@ impl Position {
     }
 
     pub fn king_exists(&self, color: Color) -> bool {
-        self[Piece::Filled(PieceType::King, color)] != 0
+        self[Piece::king(color)] != 0
     }
 
     pub fn attacks(&self) -> Bitboard {

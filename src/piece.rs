@@ -2,14 +2,16 @@ use std::{fmt, str, ops};
 
 use crate::error::{BoardError, ErrorKind};
 
+pub mod init;
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum Piece {
-    Filled(PieceType, Color),
+    Filled(PieceKind, Color),
     Empty,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
-pub enum PieceType {
+pub enum PieceKind {
     King,
     Queen,
     Bishop,
@@ -57,12 +59,12 @@ impl TryFrom<char> for Piece {
             Color::Black
         };
         Ok(match c.to_ascii_lowercase() {
-            'k' => Piece::Filled(PieceType::King, color),
-            'q' => Piece::Filled(PieceType::Queen, color),
-            'b' => Piece::Filled(PieceType::Bishop, color),
-            'n' => Piece::Filled(PieceType::Knight, color),
-            'r' => Piece::Filled(PieceType::Rook, color),
-            'p' => Piece::Filled(PieceType::Pawn, color),
+            'k' => Piece::king(color),
+            'q' => Piece::queen(color),
+            'b' => Piece::bishop(color),
+            'n' => Piece::knight(color),
+            'r' => Piece::rook(color),
+            'p' => Piece::pawn(color),
             '-' => Piece::Empty,
             _ => {
                 return Err(BoardError::new(
@@ -90,19 +92,19 @@ impl TryFrom<usize> for Piece {
             Color::White
         };
         Ok(match index >> 1 {
-            0 => Self::Filled(PieceType::King, color),
-            1 => Self::Filled(PieceType::Queen, color),
-            2 => Self::Filled(PieceType::Bishop, color),
-            3 => Self::Filled(PieceType::Knight, color),
-            4 => Self::Filled(PieceType::Rook, color),
-            5 => Self::Filled(PieceType::Pawn, color),
+            0 => Self::Filled(PieceKind::King, color),
+            1 => Self::Filled(PieceKind::Queen, color),
+            2 => Self::Filled(PieceKind::Bishop, color),
+            3 => Self::Filled(PieceKind::Knight, color),
+            4 => Self::Filled(PieceKind::Rook, color),
+            5 => Self::Filled(PieceKind::Pawn, color),
             6 => Self::Empty,
             _ => unreachable!()
         })
     }
 }
 
-impl fmt::Display for PieceType {
+impl fmt::Display for PieceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let c = match self {
             Self::King => "k",
@@ -150,7 +152,7 @@ impl Piece {
             Self::Empty => None,
         }
     }
-    pub fn piece_type(&self) -> Option<PieceType> {
+    pub fn kind(&self) -> Option<PieceKind> {
         match self {
             Self::Filled(t, _) => Some(*t),
             Self::Empty => None,

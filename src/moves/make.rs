@@ -3,7 +3,7 @@ use crate::{
     error::{BoardError, ErrorKind},
     hash::{hash_index, MAX_PIECE_INDEX},
     moves::{Move, MoveState},
-    piece::{Color, Piece, PieceType},
+    piece::{Color, Piece, PieceKind},
     square::Square,
     Board,
 };
@@ -25,21 +25,21 @@ impl Board {
         //Move is valid, and legal
 
         let is_ep = if let Some(e) = self.ep_target {
-            e == mv.dest && piece == Piece::Filled(PieceType::Pawn, self.color_to_move())
+            e == mv.dest && piece == Piece::pawn(self.color_to_move())
         } else {
             false
         };
 
         let mut capture = self.position.r#move(mv.origin, mv.dest);
         if is_ep {
-            capture = Piece::Filled(PieceType::Pawn, !self.color_to_move());
+            capture = Piece::pawn(!self.color_to_move());
             let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
             self.position.clear(index);
         }
         if mv.promotion != Piece::Empty {
             self.position.put(mv.promotion, mv.dest);
         }
-        let is_castle = Piece::Filled(PieceType::King, self.color_to_move()) == piece
+        let is_castle = Piece::king(self.color_to_move()) == piece
             && mv.dest.index().abs_diff(mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
         if is_castle {
@@ -75,7 +75,7 @@ impl Board {
             self.halfmove = 0;
         }
 
-        if let Piece::Filled(PieceType::Pawn, _) = piece {
+        if let Piece::Filled(PieceKind::Pawn, _) = piece {
             //reset halfmove
             self.halfmove = 0;
 
@@ -90,12 +90,12 @@ impl Board {
         }
 
         // Update castling
-        if let Piece::Filled(PieceType::King, color) = piece {
+        if let Piece::Filled(PieceKind::King, color) = piece {
             let ci_offset = if color == Color::White { 0 } else { 2 };
             self.castle[ci_offset] = false;
             self.castle[1 | ci_offset] = false;
         }
-        if let Piece::Filled(PieceType::Rook, color) = piece {
+        if let Piece::Filled(PieceKind::Rook, color) = piece {
             let ci_offset = if color == Color::White { 0 } else { 2 };
             if color == Color::White && mv.origin.index() == 63
                 || color == Color::Black && mv.origin.index() == 7
@@ -107,7 +107,7 @@ impl Board {
                 self.castle[ci_offset] = false;
             }
         }
-        if let Piece::Filled(PieceType::Rook, color) = capture {
+        if let Piece::Filled(PieceKind::Rook, color) = capture {
             let ci_offset = if color == Color::White { 0 } else { 2 };
             if color == Color::White && mv.dest.index() == 63
                 || color == Color::Black && mv.dest.index() == 7
@@ -130,7 +130,7 @@ impl Board {
         };
         let piece = match ms.mv.promotion {
             Piece::Empty => self[ms.mv.dest],
-            Piece::Filled(_, color) => Piece::Filled(PieceType::Pawn, color),
+            Piece::Filled(_, color) => Piece::pawn(color),
         };
         self.increment_hash(ms, piece);
         if ms.mv.promotion != Piece::Empty {
@@ -140,7 +140,7 @@ impl Board {
             .move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
 
         let is_ep = if let Some(e) = ms.ep_target {
-            e.index() == ms.mv.dest.index() && piece.piece_type() == Some(PieceType::Pawn)
+            e.index() == ms.mv.dest.index() && piece.kind() == Some(PieceKind::Pawn)
         } else {
             false
         };
@@ -152,7 +152,7 @@ impl Board {
             self.position.clear(ms.mv.dest);
         }
 
-        let is_castle = Some(PieceType::King) == piece.piece_type()
+        let is_castle = Some(PieceKind::King) == piece.kind()
             && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
         if is_castle {
@@ -188,7 +188,7 @@ impl Board {
         }
 
         let is_ep = if let Some(pos) = ms.ep_target {
-            pos == ms.mv.dest && p.piece_type() == Some(PieceType::Pawn)
+            pos == ms.mv.dest && p.kind() == Some(PieceKind::Pawn)
         } else {
             false
         };
@@ -201,11 +201,11 @@ impl Board {
             self.hash ^= self.hash_keys[hash_index(ms.capture, index.into())];
         }
 
-        let is_castle = Some(PieceType::King) == p.piece_type()
+        let is_castle = Some(PieceKind::King) == p.kind()
             && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
         let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
         if is_castle {
-            let rook = Piece::Filled(PieceType::Rook, !self.color_to_move());
+            let rook = Piece::rook(!self.color_to_move());
             let r_origin = if is_ks_castle {
                 ms.mv.origin.index() & !0b111
             } else {

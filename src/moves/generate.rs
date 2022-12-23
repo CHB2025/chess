@@ -1,5 +1,5 @@
 use crate::dir::{Dir, ALL_DIRS, NOT_A_FILE, NOT_H_FILE};
-use crate::piece::{Color, PieceType};
+use crate::piece::{Color, PieceKind};
 use crate::ray::Ray;
 use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board};
 
@@ -7,28 +7,11 @@ impl Board {
     pub fn moves(&self) -> Vec<Move> {
         let color = self.position.color_to_move();
         let mut mvs = Vec::new();
-        self.pawn_moves(
-            &mut mvs,
-            self.position[Piece::Filled(PieceType::Pawn, color)],
-            color,
-        );
-        self.knight_moves(
-            &mut mvs,
-            self.position[Piece::Filled(PieceType::Knight, color)],
-            color,
-        );
-        self.rook_moves(
-            &mut mvs,
-            self.position[Piece::Filled(PieceType::Rook, color)]
-                | self.position[Piece::Filled(PieceType::Queen, color)],
-            color,
-        );
-        self.bishop_moves(
-            &mut mvs,
-            self.position[Piece::Filled(PieceType::Bishop, color)]
-                | self.position[Piece::Filled(PieceType::Queen, color)],
-            color,
-        );
+        let queen = self.position[Piece::queen(color)];
+        self.pawn_moves(&mut mvs, self.position[Piece::pawn(color)], color);
+        self.knight_moves(&mut mvs, self.position[Piece::knight(color)], color);
+        self.rook_moves(&mut mvs, self.position[Piece::rook(color)] | queen, color);
+        self.bishop_moves(&mut mvs, self.position[Piece::bishop(color)] | queen, color);
         self.filter_moves_by_check(&mut mvs, color);
         self.king_moves(&mut mvs, color);
         mvs
@@ -43,12 +26,12 @@ impl Board {
                 return mvs;
             }
             match kind {
-                PieceType::King => self.king_moves(&mut mvs, color),
-                PieceType::Queen => self.queen_moves(&mut mvs, initial, color),
-                PieceType::Bishop => self.bishop_moves(&mut mvs, initial, color),
-                PieceType::Rook => self.rook_moves(&mut mvs, initial, color),
-                PieceType::Knight => self.knight_moves(&mut mvs, initial, color),
-                PieceType::Pawn => self.pawn_moves(&mut mvs, initial, color),
+                PieceKind::King => self.king_moves(&mut mvs, color),
+                PieceKind::Queen => self.queen_moves(&mut mvs, initial, color),
+                PieceKind::Bishop => self.bishop_moves(&mut mvs, initial, color),
+                PieceKind::Rook => self.rook_moves(&mut mvs, initial, color),
+                PieceKind::Knight => self.knight_moves(&mut mvs, initial, color),
+                PieceKind::Pawn => self.pawn_moves(&mut mvs, initial, color),
             };
             self.filter_moves_by_check(&mut mvs, color);
         }
@@ -68,9 +51,9 @@ impl Board {
         };
 
         mvs.retain(|mv| {
-            self.position[mv.origin].piece_type() == Some(PieceType::King)
+            self.position[mv.origin].kind() == Some(PieceKind::King)
                 || check_restriction & mv.dest.mask() != 0
-                || (self.position[mv.origin] == Piece::Filled(PieceType::Pawn, color)
+                || (self.position[mv.origin] == Piece::pawn(color)
                     && Some(mv.dest) == self.ep_target
                     && ep_pawn.mask() == check_restriction)
         });
@@ -79,7 +62,7 @@ impl Board {
     fn king_moves(&self, mvs: &mut Vec<Move>, color: Color) {
         let attacks = self.position.attacks();
         let free = (self.position[Piece::Empty] | self.position[!color]) & !attacks;
-        let initial = self.position[Piece::Filled(PieceType::King, color)];
+        let initial = self.position[Piece::king(color)];
 
         for d in ALL_DIRS {
             moves(mvs, initial, 0, free & d.mask(), d.offset());
@@ -133,11 +116,12 @@ impl Board {
         moves_with_promotions(mvs, unpinned_pieces, 0, free, color, dir.offset());
 
         //Double push
-        let dp_free = free & if color == Color::White {
-            (free >> 8) & 0xff00000000
-        } else {
-            (free << 8) & 0xff000000
-        };
+        let dp_free = free
+            & if color == Color::White {
+                (free >> 8) & 0xff00000000
+            } else {
+                (free << 8) & 0xff000000
+            };
         moves(mvs, unpinned_pieces, 0, dp_free, 2 * dir.offset());
         let mut pp = pinned_pieces;
         // Pinned double and single push
@@ -164,9 +148,7 @@ impl Board {
         }
 
         let ep_map = if let Some(sq) = self.ep_target {
-            let king = Square(
-                63 - self.position[Piece::Filled(PieceType::King, color)].leading_zeros() as u8,
-            );
+            let king = Square(63 - self.position[Piece::king(color)].leading_zeros() as u8);
             let ep_pawn = if sq.rank() == 2 {
                 Square(24 + sq.file())
             } else {
@@ -176,12 +158,9 @@ impl Board {
                 let pieces = r.pieces(&self.position);
                 if (r.dir == Dir::East || r.dir == Dir::West)
                     && pieces.len() >= 3
-                    && ((pieces[0] == Piece::Filled(PieceType::Pawn, color)
-                        && pieces[1] == Piece::Filled(PieceType::Pawn, !color))
-                        || (pieces[0] == Piece::Filled(PieceType::Pawn, !color)
-                            && pieces[1] == Piece::Filled(PieceType::Pawn, color)))
-                    && (pieces[2] == Piece::Filled(PieceType::Rook, !color)
-                        || pieces[2] == Piece::Filled(PieceType::Queen, !color))
+                    && ((pieces[0] == Piece::pawn(color) && pieces[1] == Piece::pawn(!color))
+                        || (pieces[0] == Piece::pawn(!color) && pieces[1] == Piece::pawn(color)))
+                    && (pieces[2] == Piece::rook(!color) || pieces[2] == Piece::queen(!color))
                 {
                     0 // pinned
                 } else {
@@ -431,10 +410,10 @@ fn moves_with_promotions(
     let mut attacks = mv & cap;
     let mut offset_mult = 1;
     let promos = [
-        Piece::Filled(PieceType::Queen, color),
-        Piece::Filled(PieceType::Bishop, color),
-        Piece::Filled(PieceType::Rook, color),
-        Piece::Filled(PieceType::Knight, color),
+        Piece::queen(color),
+        Piece::bishop(color),
+        Piece::rook(color),
+        Piece::knight(color),
     ];
 
     while end > 0 || attacks > 0 {
