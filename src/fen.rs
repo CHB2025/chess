@@ -80,7 +80,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
             Piece::Filled(PieceKind::Queen, _) => 1,
             _ => continue,
         };
-        if let Piece::Filled(_, Color::Black) = p {
+        if p.is_color(Color::Black) {
             i += 2;
         }
         board.castle[i] = true;

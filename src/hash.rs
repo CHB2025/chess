@@ -62,7 +62,7 @@ impl Board {
         }
 
         let is_ep = if let Some(pos) = ms.ep_target {
-            pos == ms.mv.dest && p.kind() == Some(PieceKind::Pawn)
+            pos == ms.mv.dest && p.is_kind(PieceKind::Pawn)
         } else {
             false
         };

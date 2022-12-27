@@ -10,7 +10,7 @@ use crate::{
 impl Board {
     pub fn make<'a>(&'a mut self, mv: Move) -> Result<(), BoardError> {
         let piece = self[mv.origin];
-        if piece.color() != Some(self.color_to_move()) {
+        if !piece.is_color(self.color_to_move()) {
             // Piece is not empty and matches color
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
@@ -27,21 +27,20 @@ impl Board {
             .position
             .transaction(|t| -> Result<Piece, BoardError> {
                 let is_ep = if let Some(e) = self.ep_target {
-                    e == mv.dest && piece.kind() == Some(PieceKind::Pawn)
+                    e == mv.dest && piece.is_kind(PieceKind::Pawn)
                 } else {
                     false
                 };
 
                 let mut capture = t.r#move(mv.origin, mv.dest);
                 if is_ep {
-                    capture = Piece::pawn(!t.position().color_to_move());
                     let index = (mv.origin.index() & !0b111) | (mv.dest.index() & 0b111);
-                    t.clear(index.try_into()?);
+                    capture = t.clear(index.try_into()?)
                 }
                 if mv.promotion != Piece::Empty {
                     t.put(mv.promotion, mv.dest);
                 }
-                let is_castle = piece.kind() == Some(PieceKind::King)
+                let is_castle = piece.is_kind(PieceKind::King)
                     && mv.dest.index().abs_diff(mv.origin.index()) == 2;
                 let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
                 if is_castle {
@@ -70,16 +69,16 @@ impl Board {
 
         // Updating metadata
         self.move_history.push(move_state);
-        if piece.color() == Some(Color::Black) {
+        if piece.is_color(Color::Black) {
             self.fullmove += 1
         }
-        if let Piece::Empty = capture {
+        if capture == Piece::Empty {
             self.halfmove += 1;
         } else {
             self.halfmove = 0;
         }
 
-        if let Piece::Filled(PieceKind::Pawn, _) = piece {
+        if piece.is_kind(PieceKind::Pawn) {
             //reset halfmove
             self.halfmove = 0;
 
@@ -94,32 +93,26 @@ impl Board {
         }
 
         // Update castling
-        if let Piece::Filled(PieceKind::King, color) = piece {
-            let ci_offset = if color == Color::White { 0 } else { 2 };
+        if piece.is_kind(PieceKind::King) {
+            let ci_offset = if piece.is_color(Color::White) { 0 } else { 2 };
             self.castle[ci_offset] = false;
             self.castle[1 | ci_offset] = false;
         }
-        if let Piece::Filled(PieceKind::Rook, color) = piece {
-            let ci_offset = if color == Color::White { 0 } else { 2 };
-            if color == Color::White && mv.origin.index() == 63
-                || color == Color::Black && mv.origin.index() == 7
-            {
+        if piece.is_kind(PieceKind::Rook) {
+            let is_white = piece.is_color(Color::White);
+            let ci_offset = if is_white { 0 } else { 2 };
+            if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
                 self.castle[1 | ci_offset] = false;
-            } else if color == Color::White && mv.origin.index() == 56
-                || color == Color::Black && mv.origin.index() == 0
-            {
+            } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0 {
                 self.castle[ci_offset] = false;
             }
         }
-        if let Piece::Filled(PieceKind::Rook, color) = capture {
-            let ci_offset = if color == Color::White { 0 } else { 2 };
-            if color == Color::White && mv.dest.index() == 63
-                || color == Color::Black && mv.dest.index() == 7
-            {
+        if capture.is_kind(PieceKind::Rook) {
+            let is_white = capture.is_color(Color::White);
+            let ci_offset = if is_white { 0 } else { 2 };
+            if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
                 self.castle[1 | ci_offset] = false;
-            } else if color == Color::White && mv.dest.index() == 56
-                || color == Color::Black && mv.dest.index() == 0
-            {
+            } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
                 self.castle[ci_offset] = false;
             }
         }
@@ -146,7 +139,7 @@ impl Board {
                 t.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
 
                 let is_ep = if let Some(e) = ms.ep_target {
-                    e.index() == ms.mv.dest.index() && piece.kind() == Some(PieceKind::Pawn)
+                    e.index() == ms.mv.dest.index() && piece.is_kind(PieceKind::Pawn)
                 } else {
                     false
                 };
@@ -158,7 +151,7 @@ impl Board {
                     t.clear(ms.mv.dest);
                 }
 
-                let is_castle = Some(PieceKind::King) == piece.kind()
+                let is_castle = piece.is_kind(PieceKind::King)
                     && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
                 let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
                 if is_castle {
@@ -179,14 +172,13 @@ impl Board {
             .unwrap();
 
         // Resetting metadata
-        if piece.color() == Some(Color::Black) {
+        if piece.is_color(Color::Black) {
             self.fullmove -= 1;
         }
         self.castle = ms.castle;
         self.ep_target = ms.ep_target;
         self.halfmove = ms.halfmove;
     }
-
 }
 
 #[cfg(test)]

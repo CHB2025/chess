@@ -51,7 +51,7 @@ impl Board {
         };
 
         mvs.retain(|mv| {
-            self.position[mv.origin].kind() == Some(PieceKind::King)
+            self.position[mv.origin].is_kind(PieceKind::King)
                 || check_restriction & mv.dest.mask() != 0
                 || (self.position[mv.origin] == Piece::pawn(color)
                     && Some(mv.dest) == self.ep_target
