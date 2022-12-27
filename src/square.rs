@@ -6,7 +6,7 @@ use crate::position::Bitboard;
 
 const A1: u8 = 63;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
 pub struct Square(pub(super) u8);
 
 impl fmt::Display for Square {

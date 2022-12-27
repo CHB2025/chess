@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::error::{BoardError, ErrorKind};
-use crate::piece::{PieceKind, Color};
+use crate::piece::{Color, PieceKind};
 use crate::position::Position;
 use crate::{piece::Piece, square::Square, Board};
 use regex::Regex;
@@ -11,8 +11,6 @@ impl Board {
         let mut output = String::new();
 
         output += self.position.to_string().as_str();
-
-        output += &format!(" {}", self.color_to_move());
 
         if self.castle.iter().all(|x| !x) {
             output += " -";
@@ -45,14 +43,7 @@ impl Board {
 
 pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let f: String = fen.into();
-    if !is_valid(&f) {
-        return Err(BoardError::new(
-            ErrorKind::InvalidInput,
-            "Invalid FEN input.",
-        ));
-    }
 
-    // Should never be used since FEN is checked
     let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
 
     let mut board = Board {
@@ -69,28 +60,19 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let mut sections = f.split(' ');
 
     let b = sections.next().ok_or_else(short_err)?;
-    for (y, row) in b.split('/').enumerate() {
-        let mut offset: usize = 0;
-        for (x, symbol) in row.chars().rev().enumerate() {
-            if symbol.is_numeric() {
-                offset += symbol.to_string().parse::<usize>()? - 1;
-                continue;
-            }
-            let p: Piece = symbol.try_into()?;
-            let square: Square = ((y << 3) + x + offset).try_into()?;
-            board.position.put(p, square);
-        }
-    }
-    board.position.update_attacks_and_pins();
-
-    // Setting white_to_move
-    let stm = sections.next().ok_or_else(short_err)?;
-    if stm.to_lowercase() != "w" {
-        board.position.switch_color_to_move();
-    }
+    let ctm = sections.next().ok_or_else(short_err)?;
+    board.position = (b.to_owned() + " " + ctm).parse()?;
 
     // Castling rights
     let castling = sections.next().ok_or_else(short_err)?;
+    let c_re =
+        Regex::new(r"^(?:K?Q?k?q?|-)$").expect("Invalid Regex used to check castling rights");
+    if !c_re.is_match(castling) {
+        return Err(BoardError::new(
+            ErrorKind::InvalidInput,
+            "Castling rights are invalid",
+        ));
+    }
     for c in castling.chars() {
         let p: Piece = c.try_into()?;
         let mut i = match p {
@@ -106,72 +88,21 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
     if let Ok(p) = Square::from_str(sections.next().ok_or_else(short_err)?) {
         board.ep_target = Some(p);
+        // Check rank and if there is a pawn in capture position right above it based on color to move
     }
 
-    board.halfmove = sections.next().ok_or_else(short_err)?.parse()?;
-    board.fullmove = sections.next().ok_or_else(short_err)?.parse()?;
-    
+    board.halfmove = match sections.next(){
+        Some(hm) => hm.parse()?,
+        None => 0,
+    };
+    board.fullmove = match sections.next() {
+        Some(fm) => fm.parse()?,
+        None => 1,
+    };
+
     board.initialize_hash();
 
     Ok(board)
-}
-
-fn is_valid<S: Into<String>>(fen: S) -> bool {
-    let f: String = fen.into();
-    let mut sections = f.split(' ');
-
-    // Checking the board section
-    let b = match sections.next() {
-        Some(b) => b,
-        None => return false,
-    };
-    let rows = b.split('/');
-    let mut row_count = 0;
-    let mut pos_count = 0;
-    for row in rows {
-        row_count += 1;
-        for c in row.chars() {
-            if c.is_ascii_digit() {
-                pos_count += match c.to_string().parse::<i32>() {
-                    Ok(c) => c,
-                    Err(_) => return false,
-                };
-            } else {
-                match Piece::try_from(c) {
-                    Ok(p) => {
-                        if let Piece::Empty = p {
-                            return false;
-                        }
-                    }
-                    Err(_) => return false,
-                };
-                pos_count += 1;
-            }
-        }
-    }
-    if row_count != 8 || pos_count != 64 {
-        return false;
-    }
-
-    let patterns: [&str; 5] = [
-        r"^(?:w|b)$",
-        r"^(?:K?Q?k?q?|-)$",
-        r"^(?:[a-h][36]|-)$",
-        r"^[0-9]{1,2}$",
-        r"^[0-9]+$",
-    ];
-    let mut count: usize = 0;
-    for (i, section) in sections.enumerate() {
-        if i > 4 {
-            return false;
-        }
-        let re = Regex::new(patterns[i]).expect("Invalid Regex used to check fen");
-        if !re.is_match(section) {
-            return false;
-        }
-        count += 1;
-    }
-    count == patterns.len()
 }
 
 #[cfg(test)]
@@ -220,7 +151,12 @@ mod tests {
             ),
         ];
         for (fen, is_valid) in fen_strings {
-            assert_eq!(fen::is_valid(fen), is_valid, "Testing {}", fen);
+            assert_eq!(
+                !fen::create_board(fen).is_err(),
+                is_valid,
+                "Testing {}",
+                fen
+            );
         }
     }
 

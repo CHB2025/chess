@@ -1,4 +1,4 @@
-use std::{fmt, str, ops};
+use std::{fmt, ops, str};
 
 use crate::error::{BoardError, ErrorKind};
 
@@ -99,7 +99,7 @@ impl TryFrom<usize> for Piece {
             4 => Self::Filled(PieceKind::Rook, color),
             5 => Self::Filled(PieceKind::Pawn, color),
             6 => Self::Empty,
-            _ => unreachable!()
+            _ => unreachable!(),
         })
     }
 }
@@ -128,6 +128,21 @@ impl fmt::Display for Color {
     }
 }
 
+impl str::FromStr for Color {
+    type Err = BoardError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "w" => Ok(Self::White),
+            "b" => Ok(Self::Black),
+            _ => Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "Attempted to parse color from invalid string",
+            )),
+        }
+    }
+}
+
 impl ops::Not for Color {
     type Output = Self;
 
@@ -152,10 +167,22 @@ impl Piece {
             Self::Empty => None,
         }
     }
+    pub fn is_color(&self, color: Color) -> bool {
+        match self {
+            Self::Filled(_, c) => *c == color,
+            Self::Empty => false,
+        }
+    }
     pub fn kind(&self) -> Option<PieceKind> {
         match self {
             Self::Filled(t, _) => Some(*t),
             Self::Empty => None,
+        }
+    }
+    pub fn is_kind(&self, kind: PieceKind) -> bool {
+        match self {
+            Self::Filled(k, _) => *k == kind,
+            Self::Empty => false,
         }
     }
 }

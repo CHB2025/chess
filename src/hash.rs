@@ -1,7 +1,8 @@
 use rand::{self, rngs::StdRng, RngCore, SeedableRng};
 use std::hash::Hash;
 
-use crate::piece::Color;
+use crate::moves::MoveState;
+use crate::piece::{Color, PieceKind};
 use crate::{piece::Piece, Board};
 
 pub(crate) const MAX_PIECE_INDEX: usize = 767;
@@ -50,6 +51,65 @@ impl Board {
 
     pub fn get_hash(&self) -> u64 {
         self.hash
+    }
+
+    pub(super) fn increment_hash(&mut self, ms: MoveState, p: Piece) {
+        self.hash ^= self.hash_keys[hash_index(p, ms.mv.origin.index().into())];
+        if ms.mv.promotion == Piece::Empty {
+            self.hash ^= self.hash_keys[hash_index(p, ms.mv.dest.index().into())];
+        } else {
+            self.hash ^= self.hash_keys[hash_index(ms.mv.promotion, ms.mv.dest.index().into())];
+        }
+
+        let is_ep = if let Some(pos) = ms.ep_target {
+            pos == ms.mv.dest && p.kind() == Some(PieceKind::Pawn)
+        } else {
+            false
+        };
+
+        if ms.capture != Piece::Empty && !is_ep {
+            self.hash ^= self.hash_keys[hash_index(ms.capture, ms.mv.dest.index().into())];
+        }
+        if is_ep {
+            let index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
+            self.hash ^= self.hash_keys[hash_index(ms.capture, index.into())];
+        }
+
+        let is_castle = p.is_kind(PieceKind::King)
+            && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
+        let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
+        if is_castle {
+            let rook = Piece::rook(!self.color_to_move());
+            let r_origin = if is_ks_castle {
+                ms.mv.origin.index() & !0b111
+            } else {
+                ms.mv.origin.index() | 0b111
+            };
+            let r_dest = if is_ks_castle {
+                r_origin + 2
+            } else {
+                r_origin - 3
+            };
+            self.hash ^= self.hash_keys[hash_index(rook, r_origin.into())];
+            self.hash ^= self.hash_keys[hash_index(rook, r_dest.into())];
+        }
+        let mut next_index = MAX_PIECE_INDEX + 1;
+        // Changing sides
+        self.hash ^= self.hash_keys[next_index];
+        next_index += 1;
+
+        for i in 0..4 {
+            if self.castle[i] != ms.castle[i] {
+                self.hash ^= self.hash_keys[next_index];
+            }
+            next_index += 1;
+        }
+        if let Some(pos) = ms.ep_target {
+            self.hash ^= self.hash_keys[next_index + pos.file() as usize];
+        }
+        if let Some(pos) = self.ep_target {
+            self.hash ^= self.hash_keys[next_index + pos.file() as usize]
+        }
     }
 }
 

@@ -1,17 +1,22 @@
 use core::fmt;
 use std::default;
+use std::str::FromStr;
 
+use crate::error::{BoardError, ErrorKind};
 use crate::piece::{Color, Piece};
 use crate::ray::Ray;
 use crate::square::Square;
 
+use self::transaction::Transaction;
+
 pub mod attacks;
 pub mod index;
+pub mod transaction;
 
 pub type Bitboard = u64;
 
 /// Chess board representation using both bitboards and piecewise representation
-#[derive(Clone)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Position {
     bitboards: [Bitboard; 13],
     colors: [Bitboard; 2],
@@ -20,6 +25,54 @@ pub struct Position {
     checks: Bitboard,
     color_to_move: Color,
     pieces: [Piece; 64],
+}
+
+impl FromStr for Position {
+    type Err = BoardError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut position = Self::empty();
+        let (b, ctm) = s.split_once(' ').ok_or(BoardError::new(
+            ErrorKind::InvalidInput,
+            "Invalid Position Input. Didn't include both color and position",
+        ))?;
+        let mut row_count = 0;
+        let mut pos_count = 0;
+        for (y, row) in b.split('/').enumerate() {
+            let mut offset: usize = 0;
+            for (x, symbol) in row.chars().rev().enumerate() {
+                if symbol.is_numeric() {
+                    let o = symbol.to_string().parse::<usize>()?;
+                    pos_count += o;
+                    offset += o - 1;
+                    continue;
+                }
+                let p: Piece = symbol.try_into()?;
+                let square: Square = ((y << 3) + x + offset).try_into()?;
+                position.pieces[square] = p;
+                position.bitboards[Piece::Empty] &= !square.mask();
+                position.bitboards[p] |= square.mask();
+                if let Some(color) = p.color() {
+                    position.colors[color] |= square.mask();
+                }
+                pos_count += 1;
+            }
+            row_count += 1;
+        }
+
+        position.color_to_move = ctm.parse()?;
+
+        if row_count != 8 || pos_count != 64 {
+            println!("{} rows, {} positions", row_count, pos_count);
+            return Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "Invalid Position Input. Row or Position count did not match expected",
+            ));
+        }
+        position.update_attacks_and_pins();
+
+        Ok(position)
+    }
 }
 
 impl default::Default for Position {
@@ -41,8 +94,8 @@ impl default::Default for Position {
                 0xff << 8,
                 0xffffffff << 16,
             ],
-            colors: [ 0xffff << 40, 0xffff ],
-            attacks: 0xff << 40,
+            colors: [ 0xffff << 48, 0xffff ],
+            attacks: 0xffff7e,
             pins: 0,
             checks: !0,
             color_to_move: Color::White,
@@ -115,7 +168,7 @@ impl fmt::Display for Position {
                 output.push('/');
             }
         }
-        write!(f, "{}", output)
+        write!(f, "{} {}", output, self.color_to_move)
     }
 }
 
@@ -149,41 +202,29 @@ impl Position {
         }
     }
 
-    pub fn update_attacks_and_pins(&mut self) {
+    fn update_attacks_and_pins(&mut self) {
         self.update_pins_and_checks();
         self.attacks = self.gen_attacks(!self.color_to_move);
     }
 
-    // Doesn't update attacks or pins
-    pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
-        let replaced = self.pieces[square];
-        self.pieces[square] = piece;
-        let map = 1 << square.index();
-        self.bitboards[replaced] &= !map;
-        if let Some(color) = replaced.color() {
-            self.colors[color] &= !map;
+    pub fn transaction<'a, T, E>(
+        &'a mut self,
+        arg: impl Fn(&mut Transaction<'a>) -> Result<T, E>,
+    ) -> Result<T, E> {
+        let mut tran = Transaction {
+            position: self,
+            puts: Vec::new(),
+        };
+        match arg(&mut tran) {
+            Ok(r) => {
+                tran.complete();
+                Ok(r)
+            }
+            Err(e) => {
+                tran.revert();
+                Err(e)
+            }
         }
-        self.bitboards[piece] |= map;
-        if let Some(color) = piece.color() {
-            self.colors[color] |= map;
-        }
-
-        replaced
-    }
-
-    /// Clears the provided square. Returns the piece that previously held that position
-    pub fn clear(&mut self, square: Square) -> Piece {
-        self.put(Piece::Empty, square)
-    }
-
-    /// Moves the piece at `from` to `to`. Returns the piece that was replaced at `to`.
-    pub fn r#move(&mut self, from: Square, to: Square) -> Piece {
-        self.move_replace(from, to, Piece::Empty)
-    }
-
-    pub fn move_replace(&mut self, from: Square, to: Square, replacement: Piece) -> Piece {
-        let piece = self.put(replacement, from);
-        self.put(piece, to)
     }
 
     /// Returns the square occupied by the king of the provided color.
@@ -233,5 +274,18 @@ impl Position {
 
     pub fn in_check(&self) -> bool {
         self.checks != !0
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_from_string() {
+        let fs = Position::from_str("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w").unwrap();
+        assert_eq!(fs, Position::default());
     }
 }
