@@ -7,11 +7,11 @@ use crate::piece::{Color, Piece};
 use crate::ray::Ray;
 use crate::square::Square;
 
-use self::transaction::Transaction;
+use self::action::Action;
 
 pub mod attacks;
 pub mod index;
-pub mod transaction;
+pub mod action;
 
 pub type Bitboard = u64;
 
@@ -207,24 +207,16 @@ impl Position {
         self.attacks = self.gen_attacks(!self.color_to_move);
     }
 
-    pub fn transaction<'a, T, E>(
+    pub fn action<'a, T>(
         &'a mut self,
-        arg: impl Fn(&mut Transaction<'a>) -> Result<T, E>,
-    ) -> Result<T, E> {
-        let mut tran = Transaction {
+        arg: impl Fn(&mut Action<'a>) -> T,
+    ) -> T {
+        let mut action = Action {
             position: self,
-            puts: Vec::new(),
         };
-        match arg(&mut tran) {
-            Ok(r) => {
-                tran.complete();
-                Ok(r)
-            }
-            Err(e) => {
-                tran.revert();
-                Err(e)
-            }
-        }
+        let response = arg(&mut action);
+        action.complete();
+        response
     }
 
     /// Returns the square occupied by the king of the provided color.

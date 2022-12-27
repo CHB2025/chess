@@ -25,7 +25,7 @@ impl Board {
 
         let capture = self
             .position
-            .transaction(|t| -> Result<Piece, BoardError> {
+            .action(|t| -> Piece {
                 let is_ep = if let Some(e) = self.ep_target {
                     e == mv.dest && piece.is_kind(PieceKind::Pawn)
                 } else {
@@ -34,8 +34,8 @@ impl Board {
 
                 let mut capture = t.r#move(mv.origin, mv.dest);
                 if is_ep {
-                    let index = (mv.origin.index() & !0b111) | (mv.dest.index() & 0b111);
-                    capture = t.clear(index.try_into()?)
+                    let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
+                    capture = t.clear(index)
                 }
                 if mv.promotion != Piece::Empty {
                     t.put(mv.promotion, mv.dest);
@@ -54,10 +54,10 @@ impl Board {
                     } else {
                         r_origin as i32 + 3 * Dir::East.offset()
                     } as u8;
-                    t.r#move(r_origin.try_into()?, r_dest.try_into()?);
+                    t.r#move(Square(r_origin), Square(r_dest));
                 }
-                Ok(capture)
-            })?;
+                capture
+            });
 
         let move_state = MoveState {
             mv,
@@ -132,7 +132,7 @@ impl Board {
         self.increment_hash(ms, piece);
 
         self.position
-            .transaction(|t| -> Result<(), BoardError> {
+            .action(|t| {
                 if ms.mv.promotion != Piece::Empty {
                     t.put(piece, ms.mv.dest);
                 }
@@ -155,21 +155,19 @@ impl Board {
                     && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
                 let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
                 if is_castle {
-                    let r_origin: Square = Square(if is_ks_castle {
+                    let r_origin = Square(if is_ks_castle {
                         ms.mv.origin.index() & !0b111
                     } else {
                         ms.mv.origin.index() | 0b111
                     });
-                    let r_dest: Square = Square(if is_ks_castle {
+                    let r_dest = Square(if is_ks_castle {
                         r_origin.index() as i32 + 2 * Dir::West.offset()
                     } else {
                         r_origin.index() as i32 + 3 * Dir::East.offset()
                     } as u8);
                     t.r#move(r_dest, r_origin);
                 }
-                Ok(())
-            })
-            .unwrap();
+            });
 
         // Resetting metadata
         if piece.is_color(Color::Black) {
