@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
-use crate::error::{BoardError, ErrorKind};
-use crate::piece::{Color, PieceKind};
-use crate::position::Position;
-use crate::{piece::Piece, square::Square, Board};
+use super::position::Position;
+use crate::{Board, BoardError, Color, ErrorKind, Piece, PieceKind, Square};
 use regex::Regex;
 
 impl Board {
@@ -91,7 +89,7 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
         // Check rank and if there is a pawn in capture position right above it based on color to move
     }
 
-    board.halfmove = match sections.next(){
+    board.halfmove = match sections.next() {
         Some(hm) => hm.parse()?,
         None => 0,
     };
@@ -107,7 +105,6 @@ pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::fen;
 
     use super::create_board;
 
@@ -152,7 +149,7 @@ mod tests {
         ];
         for (fen, is_valid) in fen_strings {
             assert_eq!(
-                !fen::create_board(fen).is_err(),
+                !create_board(fen).is_err(),
                 is_valid,
                 "Testing {}",
                 fen

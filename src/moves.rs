@@ -1,13 +1,6 @@
 use std::{fmt, str};
 
-mod generate;
-mod make;
-
-use crate::{
-    error::{BoardError, ErrorKind},
-    piece::Piece,
-    square::Square,
-};
+use crate::{BoardError, ErrorKind, Piece, Square};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Move {

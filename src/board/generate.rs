@@ -1,7 +1,5 @@
-use crate::dir::{Dir, ALL_DIRS, NOT_A_FILE, NOT_H_FILE};
-use crate::piece::{Color, PieceKind};
-use crate::ray::Ray;
-use crate::{moves::Move, piece::Piece, position::Bitboard, square::Square, Board};
+use crate::dir::{NOT_A_FILE, NOT_H_FILE};
+use crate::{Bitboard, Board, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL_DIRS};
 
 impl Board {
     pub fn moves(&self) -> Vec<Move> {

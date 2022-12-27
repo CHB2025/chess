@@ -1,5 +1,4 @@
-use crate::piece::PieceKind;
-use crate::position::Bitboard;
+use crate::{PieceKind, Bitboard};
 
 const ALL: u64 = !0;
 pub const NOT_H_FILE: u64 = 0xfefefefefefefefe;

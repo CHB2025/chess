@@ -1,7 +1,4 @@
-use crate::dir::Dir;
-use crate::piece::Piece;
-use crate::position::{Bitboard, Position};
-use crate::square::Square;
+use crate::{Bitboard, Dir, Piece, Position, Square};
 
 pub struct Ray {
     pub origin: Square,

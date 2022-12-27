@@ -1,8 +1,6 @@
 use std::{fmt, str};
 
-use crate::dir::Dir;
-use crate::error::{BoardError, ErrorKind};
-use crate::position::Bitboard;
+use crate::{Bitboard, Dir, BoardError, ErrorKind};
 
 const A1: u8 = 63;
 

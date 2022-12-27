@@ -1,8 +1,6 @@
 use std::io;
 
-use chess_board::error::BoardError;
-use chess_board::moves::Move;
-use chess_board::Board;
+use chess_board::{Board, BoardError, Move};
 
 fn main() -> io::Result<()> {
     let mut chess = Board::default();
