@@ -1,9 +1,16 @@
-use std::io;
+use std::{io, env};
 
 use chess_board::{Board, BoardError, Move};
 
 fn main() -> io::Result<()> {
     let mut chess = Board::default();
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        let cmd = &args[1];
+        let arg = &args[2..].join(" ");
+        handle_command(&mut chess, cmd, arg).unwrap();
+        return Ok(());
+    }
 
     loop {
         println!("Current Board:\n{:?}", chess);
