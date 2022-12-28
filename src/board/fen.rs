@@ -4,6 +4,16 @@ use super::position::Position;
 use crate::{Board, BoardError, Color, ErrorKind, Piece, PieceKind, Square};
 use regex::Regex;
 
+
+impl FromStr for Board {
+    type Err = BoardError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_fen(s)
+    }
+}
+
+
 impl Board {
     pub fn to_fen(&self) -> String {
         let mut output = String::new();
@@ -39,7 +49,7 @@ impl Board {
     }
 }
 
-pub fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
+fn create_board<S: Into<String>>(fen: S) -> Result<Board, BoardError> {
     let f: String = fen.into();
 
     let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");

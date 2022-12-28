@@ -1,5 +1,4 @@
-use crate::dir::{NOT_A_FILE, NOT_H_FILE};
-use crate::{Bitboard, Board, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL_DIRS};
+use crate::{Bitboard, Board, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL_DIRS, NOT_A_FILE, NOT_H_FILE};
 
 impl Board {
     pub fn moves(&self) -> Vec<Move> {
@@ -18,7 +17,7 @@ impl Board {
     pub fn moves_for_square(&self, square: Square) -> Vec<Move> {
         let mut mvs = Vec::new();
         let piece = self.position[square];
-        let initial = square.mask();
+        let initial: Bitboard = square.into();
         if let Piece::Filled(kind, color) = piece {
             if color != self.position.color_to_move() {
                 return mvs;
@@ -50,10 +49,10 @@ impl Board {
 
         mvs.retain(|mv| {
             self.position[mv.origin].is_kind(PieceKind::King)
-                || check_restriction & mv.dest.mask() != 0
+                || !(check_restriction & Bitboard::from(mv.dest)).is_empty()
                 || (self.position[mv.origin] == Piece::pawn(color)
                     && Some(mv.dest) == self.ep_target
-                    && ep_pawn.mask() == check_restriction)
+                    && Bitboard::from(ep_pawn) == check_restriction)
         });
     }
 
@@ -63,36 +62,36 @@ impl Board {
         let initial = self.position[Piece::king(color)];
 
         for d in ALL_DIRS {
-            moves(mvs, initial, 0, free & d.mask(), d.offset());
+            moves(mvs, initial, Bitboard(0), free & d.filter(), d.offset());
         }
 
         let filter_offset = if color == Color::White { 56 } else { 0 };
         // Castling
-        let ks_filter = 0b00000110 << filter_offset;
-        let ks_check = 0b00001110 << filter_offset;
-        let qs_filter = 0b01110000 << filter_offset;
-        let qs_check = 0b00111000 << filter_offset;
+        let ks_filter = Bitboard(0b00000110 << filter_offset);
+        let ks_check = Bitboard(0b00001110 << filter_offset);
+        let qs_filter = Bitboard(0b01110000 << filter_offset);
+        let qs_check = Bitboard(0b00111000 << filter_offset);
         let castle_offset = if color == Color::White { 0 } else { 2 };
         if self.castle[castle_offset]
-            && ks_filter & self.position[Piece::Empty] == ks_filter
-            && ks_check & attacks == 0
+            && self.position[Piece::Empty] & ks_filter == ks_filter
+            && (attacks & ks_check).is_empty()
         {
             moves(
                 mvs,
                 initial,
-                0,
+                Bitboard(0),
                 self.position[Piece::Empty],
                 Dir::East.offset() * 2,
             );
         }
         if self.castle[1 + castle_offset]
-            && qs_filter & self.position[Piece::Empty] == qs_filter
-            && qs_check & attacks == 0
+            && self.position[Piece::Empty] & qs_filter == qs_filter
+            && (attacks & qs_check).is_empty()
         {
             moves(
                 mvs,
                 initial,
-                0,
+                Bitboard(0),
                 self.position[Piece::Empty],
                 Dir::West.offset() * 2,
             );
@@ -111,64 +110,62 @@ impl Board {
         let unpinned_pieces = !pins & initial;
         let pinned_pieces = pins & initial;
         // Single push
-        moves_with_promotions(mvs, unpinned_pieces, 0, free, color, dir.offset());
+        moves_with_promotions(mvs, unpinned_pieces, Bitboard(0), free, color, dir.offset());
 
         //Double push
         let dp_free = free
             & if color == Color::White {
-                (free >> 8) & 0xff00000000
+                (free >> 8) & Bitboard(0xff00000000u64)
             } else {
-                (free << 8) & 0xff000000
+                (free << 8) & Bitboard(0xff000000u64)
             };
-        moves(mvs, unpinned_pieces, 0, dp_free, 2 * dir.offset());
-        let mut pp = pinned_pieces;
+        moves(mvs, unpinned_pieces, Bitboard(0), dp_free, 2 * dir.offset());
+        let pp = pinned_pieces;
         // Pinned double and single push
-        while pp != 0 {
-            let square = Square(63 - pp.leading_zeros() as u8);
-            pp &= !square.mask();
-            let pin = self.position.pin_on_square(square).unwrap();
+        for square in pp {
+            let initial: Bitboard = square.into();
+            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
+            moves_with_promotions(mvs, initial, Bitboard(0), free & pin, color, dir.offset());
             moves_with_promotions(
                 mvs,
-                square.mask(),
-                0,
-                free & pin.mask(),
-                color,
-                dir.offset(),
-            );
-            moves_with_promotions(
-                mvs,
-                square.mask(),
-                0,
-                dp_free & pin.mask(),
+                initial,
+                Bitboard(0),
+                dp_free & pin,
                 color,
                 2 * dir.offset(),
             );
         }
 
-        let ep_map = if let Some(sq) = self.ep_target {
-            let king = Square(63 - self.position[Piece::king(color)].leading_zeros() as u8);
+        let ep_map: Bitboard = if let Some(sq) = self.ep_target {
+            let king = self.position.king(color);
             let ep_pawn = if sq.rank() == 2 {
                 Square(24 + sq.file())
             } else {
                 Square(32 + sq.file())
             };
             if let Some(r) = Ray::from(king, ep_pawn) {
-                let pieces = r.pieces(&self.position);
+                let pieces: Vec<Piece> = r.into_iter().filter_map(|sqr| {
+                    if self.position[sqr] == Piece::Empty {
+                        None
+                    } else {
+                        Some(self.position[sqr])
+                    }
+                }).collect();
                 if (r.dir == Dir::East || r.dir == Dir::West)
                     && pieces.len() >= 3
                     && ((pieces[0] == Piece::pawn(color) && pieces[1] == Piece::pawn(!color))
                         || (pieces[0] == Piece::pawn(!color) && pieces[1] == Piece::pawn(color)))
                     && (pieces[2] == Piece::rook(!color) || pieces[2] == Piece::queen(!color))
                 {
-                    0 // pinned
+                    Bitboard(0) // pinned
                 } else {
-                    sq.mask()
+                    sq.into()
                 }
             } else {
-                sq.mask()
+                sq.into()
             }
         } else {
-            0
+            Bitboard(0)
         };
         let cap = self.position[!color] | ep_map;
 
@@ -180,21 +177,19 @@ impl Board {
         moves_with_promotions(
             mvs,
             unpinned_pieces,
-            0,
-            cap & left_attack.mask(),
+            Bitboard(0),
+            cap & left_attack.filter(),
             color,
             left_attack.offset(),
         );
-        let mut pp = pinned_pieces;
-        while pp != 0 {
-            let square = Square(63 - pp.leading_zeros() as u8);
-            pp &= !square.mask();
-            let pin = self.position.pin_on_square(square).unwrap();
+        for square in pinned_pieces {
+            let bb: Bitboard = square.into();
+            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
             moves_with_promotions(
                 mvs,
-                square.mask(),
-                0,
-                cap & pin.mask() & left_attack.mask(),
+                bb,
+                Bitboard(0),
+                cap & pin & left_attack.filter(),
                 color,
                 left_attack.offset(),
             );
@@ -208,21 +203,18 @@ impl Board {
         moves_with_promotions(
             mvs,
             unpinned_pieces,
-            0,
-            cap & right_attack.mask(),
+            Bitboard(0),
+            cap & right_attack.filter(),
             color,
             right_attack.offset(),
         );
-        let mut pp = pinned_pieces;
-        while pp != 0 {
-            let square = Square(63 - pp.leading_zeros() as u8);
-            pp &= !square.mask();
-            let pin = self.position.pin_on_square(square).unwrap();
+        for square in pinned_pieces {
+            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
             moves_with_promotions(
                 mvs,
-                square.mask(),
-                0,
-                cap & pin.mask() & right_attack.mask(),
+                square.into(),
+                Bitboard(0),
+                cap & pin & right_attack.filter(),
                 color,
                 right_attack.offset(),
             );
@@ -232,7 +224,7 @@ impl Board {
         let dirs = [
             (
                 Dir::North.offset() + Dir::NorEast.offset(),
-                Dir::NorEast.mask(),
+                Dir::NorEast.filter(),
             ),
             (
                 Dir::NorEast.offset() + Dir::East.offset(),
@@ -244,11 +236,11 @@ impl Board {
             ),
             (
                 Dir::South.offset() + Dir::SouEast.offset(),
-                Dir::SouEast.mask(),
+                Dir::SouEast.filter(),
             ),
             (
                 Dir::South.offset() + Dir::SouWest.offset(),
-                Dir::SouWest.mask(),
+                Dir::SouWest.filter(),
             ),
             (
                 Dir::SouWest.offset() + Dir::West.offset(),
@@ -260,17 +252,17 @@ impl Board {
             ),
             (
                 Dir::North.offset() + Dir::NorWest.offset(),
-                Dir::NorWest.mask(),
+                Dir::NorWest.filter(),
             ),
         ];
         let cap = self.position[!color] | self.position[Piece::Empty];
-        if cap == 0 {
+        if cap.is_empty() {
             return;
         };
 
         let unpinned_pieces = initial & !self.position.pins();
         for (d, mask) in dirs {
-            moves(mvs, unpinned_pieces, 0, cap & mask, d);
+            moves(mvs, unpinned_pieces, Bitboard(0), cap & mask, d);
         }
     }
 
@@ -280,41 +272,39 @@ impl Board {
         let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
         let cap = self.position[!color];
         let free = self.position[Piece::Empty];
-        if free == 0 && cap == 0 {
+        if free.is_empty() && cap.is_empty() {
             return;
         }
 
         let pins = self.position.pins();
         let unpinned_pieces = initial & !pins;
-        let mut pinned_pieces: Bitboard = initial & pins;
+        let pinned_pieces: Bitboard = initial & pins;
 
         for d in dirs {
             moves(
                 mvs,
                 unpinned_pieces,
-                free & d.mask(),
-                cap & d.mask(),
+                free & d.filter(),
+                cap & d.filter(),
                 d.offset(),
             );
         }
-        while pinned_pieces != 0 {
-            let square = Square(63 - pinned_pieces.leading_zeros() as u8);
-            let i = square.mask();
-            pinned_pieces &= !i;
+        for square in pinned_pieces {
+            let i: Bitboard = square.into();
             let pin = self.position.pin_on_square(square).unwrap();
             if dirs.contains(&pin.dir) {
                 moves(
                     mvs,
                     i,
-                    free & pin.dir.mask(),
-                    cap & pin.dir.mask(),
+                    free & pin.dir.filter(),
+                    cap & pin.dir.filter(),
                     pin.dir.offset(),
                 );
                 moves(
                     mvs,
                     i,
-                    free & pin.dir.opposite().mask(),
-                    cap & pin.dir.opposite().mask(),
+                    free & pin.dir.opposite().filter(),
+                    cap & pin.dir.opposite().filter(),
                     pin.dir.opposite().offset(),
                 );
             }
@@ -324,41 +314,39 @@ impl Board {
         let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
         let cap = self.position[!color];
         let free = self.position[Piece::Empty];
-        if free == 0 && cap == 0 {
+        if free.is_empty() && cap.is_empty() {
             return;
         }
 
         let pins = self.position.pins();
         let unpinned_pieces = initial & !pins;
-        let mut pinned_pieces = initial & pins;
+        let pinned_pieces = initial & pins;
 
         for d in dirs {
             moves(
                 mvs,
                 unpinned_pieces,
-                free & d.mask(),
-                cap & d.mask(),
+                free & d.filter(),
+                cap & d.filter(),
                 d.offset(),
             );
         }
-        while pinned_pieces != 0 {
-            let square = Square(63 - pinned_pieces.leading_zeros() as u8);
-            let i = square.mask();
-            pinned_pieces &= !i;
+        for square in pinned_pieces {
+            let i: Bitboard = square.into();
             let pin = self.position.pin_on_square(square).unwrap();
             if dirs.contains(&pin.dir) {
                 moves(
                     mvs,
                     i,
-                    free & pin.dir.mask(),
-                    cap & pin.dir.mask(),
+                    free & pin.dir.filter(),
+                    cap & pin.dir.filter(),
                     pin.dir.offset(),
                 );
                 moves(
                     mvs,
                     i,
-                    free & pin.dir.opposite().mask(),
-                    cap & pin.dir.opposite().mask(),
+                    free & pin.dir.opposite().filter(),
+                    cap & pin.dir.opposite().filter(),
                     pin.dir.opposite().offset(),
                 )
             }
@@ -371,16 +359,13 @@ impl Board {
 }
 
 fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) {
-    let mut mv = shift(initial, dir);
+    let mut mv = initial << dir;
     let mut end = mv & free;
     let mut attacks = mv & cap;
     let mut offset_mult = 1;
 
-    while end > 0 || attacks > 0 {
-        let mut targets = end | attacks;
-        while targets.leading_zeros() != 64 {
-            let dest = Square(63u8 - targets.leading_zeros() as u8);
-            targets &= !dest.mask();
+    while !end.is_empty() || !attacks.is_empty() {
+        for dest in end | attacks {
             let origin = Square((dest.index() as i32 - (dir * offset_mult)) as u8);
             mvs.push(Move {
                 origin,
@@ -388,7 +373,7 @@ fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, 
                 promotion: Piece::Empty,
             });
         }
-        mv = shift(end, dir);
+        mv = end << dir;
         end = mv & free;
         attacks = mv & cap;
         offset_mult += 1;
@@ -403,7 +388,7 @@ fn moves_with_promotions(
     color: Color,
     dir: i32,
 ) {
-    let mut mv = shift(initial, dir);
+    let mut mv = initial << dir;
     let mut end = mv & free;
     let mut attacks = mv & cap;
     let mut offset_mult = 1;
@@ -414,11 +399,8 @@ fn moves_with_promotions(
         Piece::knight(color),
     ];
 
-    while end > 0 || attacks > 0 {
-        let mut targets = end | attacks;
-        while targets.leading_zeros() != 64 {
-            let dest = Square(63u8 - targets.leading_zeros() as u8);
-            targets &= !dest.mask();
+    while !end.is_empty() || !attacks.is_empty() {
+        for dest in end | attacks {
             let origin = Square((dest.index() as i32 - (dir * offset_mult)) as u8);
             if dest.rank() == 0 || dest.rank() == 7 {
                 for promotion in promos {
@@ -436,18 +418,10 @@ fn moves_with_promotions(
                 });
             }
         }
-        mv = shift(end, dir);
+        mv = end << dir;
         end = mv & free;
         attacks = mv & cap;
         offset_mult += 1;
-    }
-}
-
-fn shift(initial: Bitboard, dir: i32) -> Bitboard {
-    if dir.is_positive() {
-        initial << dir.abs()
-    } else {
-        initial >> dir.abs()
     }
 }
 

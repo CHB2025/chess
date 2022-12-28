@@ -10,7 +10,7 @@ impl<'a> Action<'a> {
         let replaced = self.position.pieces[square];
         self.position.pieces[square] = piece;
 
-        let map = square.mask();
+        let map:Bitboard = square.into();
         self.position.bitboards[replaced] &= !map;
         if let Some(color) = replaced.color() {
             self.position.colors[color] &= !map;

@@ -183,6 +183,7 @@ impl Board {
 mod tests {
     use std::str::FromStr;
 
+    use crate::Bitboard;
     use crate::piece::Color;
     use crate::{moves::Move, piece::Piece, Board};
 
@@ -191,10 +192,10 @@ mod tests {
             let white_pieces = self.position[Color::White];
             let black_pieces = self.position[Color::Black];
             let empty = self.position[Piece::Empty];
-            white_pieces & black_pieces == 0
-                && white_pieces & empty == 0
-                && black_pieces & empty == 0
-                && white_pieces | black_pieces | empty == u64::MAX
+            (white_pieces & black_pieces).is_empty()
+                && (white_pieces & empty).is_empty()
+                && (black_pieces & empty).is_empty()
+                && white_pieces | black_pieces | empty == Bitboard(u64::MAX)
         }
     }
 

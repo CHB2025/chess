@@ -1,8 +1,5 @@
-use crate::{PieceKind, Bitboard};
+use crate::{PieceKind, Bitboard, ALL, NOT_A_FILE, NOT_H_FILE};
 
-const ALL: u64 = !0;
-pub const NOT_H_FILE: u64 = 0xfefefefefefefefe;
-pub const NOT_A_FILE: u64 = 0x7f7f7f7f7f7f7f7f;
 pub const ALL_DIRS: [Dir; 8] = [
     Dir::North,
     Dir::NorEast,
@@ -53,7 +50,7 @@ impl Dir {
         }
     }
 
-    pub fn mask(&self) -> Bitboard {
+    pub fn filter(&self) -> Bitboard {
         match self {
             Dir::North => ALL,
             Dir::NorEast => NOT_A_FILE,
@@ -65,14 +62,6 @@ impl Dir {
             Dir::NorWest => NOT_H_FILE,
         }
         //
-    }
-
-    pub fn shift(&self, bitboard: Bitboard) -> Bitboard {
-        (if self.offset().is_positive() {
-            bitboard << self.offset()
-        } else {
-            bitboard >> self.offset().abs()
-        } & self.mask())
     }
 
     /// Returns the piece (either rook or bishop) that moves in this direction. Ignores Queen,

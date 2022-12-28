@@ -85,10 +85,6 @@ impl Square {
         self.0
     }
 
-    pub fn mask(&self) -> Bitboard {
-        1 << self.0
-    }
-
     pub fn rank(&self) -> u8 {
         self.0 >> 3
     }
@@ -104,12 +100,10 @@ impl Square {
         (self.rank() + self.file()) ^ 7
     }
 
-    pub fn checked_add(&self, dir: Dir) -> Option<Self> {
-        let new_mask = dir.shift(self.mask());
-        match new_mask {
-            0 => None,
-            mask => Some(Self(63 - mask.leading_zeros() as u8))
-        }
+    pub fn checked_add(self, dir: Dir) -> Option<Self> {
+        let bb: Bitboard = self.into();
+        let new_mask: Bitboard = bb << dir;
+        new_mask.first_square()
     }
 
 }

@@ -1,6 +1,5 @@
 mod board;
-pub use board::{Board, position::Bitboard};
-pub(crate) use board::position::Position;
+pub use board::Board;
 
 mod ray;
 pub use ray::Ray;
@@ -20,3 +19,6 @@ pub use error::{BoardError, ErrorKind};
 
 mod dir; //Does dir need to be public?
 pub use dir::{Dir, ALL_DIRS};
+
+mod bitboard;
+pub use bitboard::{Bitboard, ALL, EMPTY, NOT_A_FILE, NOT_H_FILE};

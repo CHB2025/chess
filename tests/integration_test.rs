@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use chess_board::Board;
 
-
 struct PerftResult {
     name: String,
     fen: String,
@@ -16,7 +15,7 @@ fn perft_positions() -> Vec<PerftResult> {
             name: "Initial".to_owned(),
             fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_owned(),
             depth: vec![1, 2, 3, 5, 6, 7],
-            nodes: vec![20, 400, 8902, 4_865_609, 119_060_324 , 3_195_901_860],
+            nodes: vec![20, 400, 8902, 4_865_609, 119_060_324, 3_195_901_860],
         },
         PerftResult {
             name: "Kiwipete".to_owned(),
@@ -64,6 +63,19 @@ fn test_perft() {
 }
 
 #[test]
+fn test_kiwipete4() {
+    let positions = perft_positions();
+    let mut b = Board::from_fen(&positions[1].fen).unwrap();
+    let now = Instant::now();
+    b.perft(4);
+    let elapsed = now.elapsed();
+    println!(
+        "Runnin perft with depth 4 on kiwipete took {} milliseconds.",
+        elapsed.as_millis()
+    );
+}
+
+#[test]
 fn test_kiwipete5() {
     let positions = perft_positions();
     let mut b = Board::from_fen(&positions[1].fen).unwrap();
@@ -72,6 +84,19 @@ fn test_kiwipete5() {
     let elapsed = now.elapsed();
     println!(
         "Running perft with depth 5 on kiwipete took {} milliseconds.",
+        elapsed.as_millis()
+    );
+}
+
+#[test]
+fn test_kiwipete6() {
+    let positions = perft_positions();
+    let mut b = Board::from_fen(&positions[1].fen).unwrap();
+    let now = Instant::now();
+    b.perft(6);
+    let elapsed = now.elapsed();
+    println!(
+        "Running perft with depth 6 on kiwipete took {} milliseconds.",
         elapsed.as_millis()
     );
 }

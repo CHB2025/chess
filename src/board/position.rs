@@ -2,18 +2,12 @@ use core::fmt;
 use std::default;
 use std::str::FromStr;
 
-use crate::error::{BoardError, ErrorKind};
-use crate::piece::{Color, Piece};
-use crate::ray::Ray;
-use crate::square::Square;
-
 use self::action::Action;
+use crate::{Bitboard, BoardError, Color, ErrorKind, Piece, Ray, Square};
 
+pub mod action;
 pub mod attacks;
 pub mod index;
-pub mod action;
-
-pub type Bitboard = u64;
 
 /// Chess board representation using both bitboards and piecewise representation
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -49,11 +43,12 @@ impl FromStr for Position {
                 }
                 let p: Piece = symbol.try_into()?;
                 let square: Square = ((y << 3) + x + offset).try_into()?;
+                let bb = Bitboard::from(square);
                 position.pieces[square] = p;
-                position.bitboards[Piece::Empty] &= !square.mask();
-                position.bitboards[p] |= square.mask();
+                position.bitboards[Piece::Empty] ^= bb;
+                position.bitboards[p] |= bb;
                 if let Some(color) = p.color() {
-                    position.colors[color] |= square.mask();
+                    position.colors[color] |= bb;
                 }
                 pos_count += 1;
             }
@@ -80,24 +75,24 @@ impl default::Default for Position {
     fn default() -> Self {
          Self {
             bitboards: [
-                0x08 << 56,
-                0x08,
-                0x10 << 56,
-                0x10,
-                0x24 << 56,
-                0x24,
-                0x42 << 56,
-                0x42,
-                0x81 << 56,
-                0x81,
-                0xff << 48,
-                0xff << 8,
-                0xffffffff << 16,
+                Bitboard(0x08 << 56),
+                Bitboard(0x08),
+                Bitboard(0x10 << 56),
+                Bitboard(0x10),
+                Bitboard(0x24 << 56),
+                Bitboard(0x24),
+                Bitboard(0x42 << 56),
+                Bitboard(0x42),
+                Bitboard(0x81 << 56),
+                Bitboard(0x81),
+                Bitboard(0xff << 48),
+                Bitboard(0xff << 8),
+                Bitboard(0xffffffff << 16),
             ],
-            colors: [ 0xffff << 48, 0xffff ],
-            attacks: 0xffff7e,
-            pins: 0,
-            checks: !0,
+            colors: [ Bitboard(0xffff << 48), Bitboard(0xffff) ],
+            attacks: Bitboard(0xffff7e),
+            pins: Bitboard(0),
+            checks: Bitboard(!0),
             color_to_move: Color::White,
             pieces: [
                 Piece::rook(Color::Black),
@@ -192,11 +187,25 @@ impl Position {
     /// Creates a new, completely empty board representation
     pub fn empty() -> Self {
         Self {
-            bitboards: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffffffffffffffff],
-            colors: [0, 0],
-            attacks: 0,
-            pins: 0,
-            checks: !0,
+            bitboards: [
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0),
+                Bitboard(0xffffffffffffffff),
+            ],
+            colors: [Bitboard(0); 2],
+            attacks: Bitboard(0),
+            pins: Bitboard(0),
+            checks: Bitboard(!0),
             color_to_move: Color::White,
             pieces: [Piece::Empty; 64],
         }
@@ -207,13 +216,8 @@ impl Position {
         self.attacks = self.gen_attacks(!self.color_to_move);
     }
 
-    pub fn action<'a, T>(
-        &'a mut self,
-        arg: impl Fn(&mut Action<'a>) -> T,
-    ) -> T {
-        let mut action = Action {
-            position: self,
-        };
+    pub fn action<'a, T>(&'a mut self, arg: impl FnOnce(&mut Action<'a>) -> T) -> T {
+        let mut action = Action { position: self };
         let response = arg(&mut action);
         action.complete();
         response
@@ -222,15 +226,13 @@ impl Position {
     /// Returns the square occupied by the king of the provided color.
     /// Panics if the king is not on the board
     pub fn king(&self, color: Color) -> Square {
-        let bitboard = self[Piece::king(color)];
-        if bitboard == 0 {
-            panic!("King is not on the board")
-        }
-        Square(63 - bitboard.leading_zeros() as u8)
+        self[Piece::king(color)]
+            .first_square()
+            .expect("King is not on the board")
     }
 
     pub fn king_exists(&self, color: Color) -> bool {
-        self[Piece::king(color)] != 0
+        !self[Piece::king(color)].is_empty()
     }
 
     pub fn attacks(&self) -> Bitboard {
@@ -241,7 +243,7 @@ impl Position {
         let piece = self[square];
         match piece {
             Piece::Filled(_, color) => {
-                if self.pins & square.mask() == square.mask() {
+                if self.pins & Bitboard::from(square) == Bitboard::from(square) {
                     Ray::from(self.king(color), square)
                 } else {
                     None
@@ -253,10 +255,6 @@ impl Position {
     pub fn color_to_move(&self) -> Color {
         self.color_to_move
     }
-    pub fn switch_color_to_move(&mut self) {
-        self.color_to_move = !self.color_to_move;
-        self.update_attacks_and_pins();
-    }
     pub fn pins(&self) -> Bitboard {
         self.pins
     }
@@ -265,7 +263,7 @@ impl Position {
     }
 
     pub fn in_check(&self) -> bool {
-        self.checks != !0
+        self.checks != Bitboard(!0)
     }
 }
 
