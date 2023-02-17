@@ -104,12 +104,6 @@ impl Square {
         //new_mask.first_square()
         (Bitboard::from(self) << dir).first_square()
     }
-
-    pub fn new_checked_add(self, dir: Dir) -> Option<Self> {
-        let new_sqr = Square(self.0.checked_add_signed(dir.offset() as i8)?);
-
-    }
-
 }
 
 fn is_valid_square(square: &str) -> bool {
