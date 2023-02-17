@@ -4,16 +4,16 @@ use std::{
     num::{self, ParseIntError},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
     InvalidInput,
     OutOfBounds,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoardError {
     pub kind: ErrorKind,
-    pub message: Option<String>,
+    pub message: &'static str,
 }
 
 impl fmt::Display for BoardError {
@@ -24,9 +24,7 @@ impl fmt::Display for BoardError {
         }
         .to_string();
 
-        if let Some(m) = &self.message {
-            err += &format!(": {}", m);
-        }
+        err += &format!(": {}", self.message);
 
         write!(f, "{}", err)
     }
@@ -51,10 +49,10 @@ impl From<ParseCharError> for BoardError {
 }
 
 impl BoardError {
-    pub fn new(kind: ErrorKind, message: impl ToString) -> BoardError {
+    pub fn new(kind: ErrorKind, message: &'static str) -> BoardError {
         BoardError {
             kind,
-            message: Some(message.to_string()),
+            message,
         }
     }
 }

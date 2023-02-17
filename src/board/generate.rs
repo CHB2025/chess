@@ -2,13 +2,13 @@ use crate::{Bitboard, Board, Color, Dir, Move, Piece, PieceKind, Ray, Square, AL
 
 impl Board {
     pub fn moves(&self) -> Vec<Move> {
-        let color = self.position.color_to_move();
-        let mut mvs = Vec::new();
-        let queen = self.position[Piece::queen(color)];
-        self.pawn_moves(&mut mvs, self.position[Piece::pawn(color)], color);
-        self.knight_moves(&mut mvs, self.position[Piece::knight(color)], color);
-        self.rook_moves(&mut mvs, self.position[Piece::rook(color)] | queen, color);
-        self.bishop_moves(&mut mvs, self.position[Piece::bishop(color)] | queen, color);
+        let color = self.color_to_move();
+        let mut mvs = Vec::with_capacity(50);
+        let queen = self[Piece::queen(color)];
+        self.pawn_moves(&mut mvs, self[Piece::pawn(color)], color);
+        self.knight_moves(&mut mvs, self[Piece::knight(color)], color);
+        self.rook_moves(&mut mvs, self[Piece::rook(color)] | queen, color);
+        self.bishop_moves(&mut mvs, self[Piece::bishop(color)] | queen, color);
         self.filter_moves_by_check(&mut mvs, color);
         self.king_moves(&mut mvs, color);
         mvs
@@ -16,10 +16,10 @@ impl Board {
 
     pub fn moves_for_square(&self, square: Square) -> Vec<Move> {
         let mut mvs = Vec::new();
-        let piece = self.position[square];
+        let piece = self[square];
         let initial: Bitboard = square.into();
         if let Piece::Filled(kind, color) = piece {
-            if color != self.position.color_to_move() {
+            if color != self.color_to_move() {
                 return mvs;
             }
             match kind {
@@ -36,7 +36,7 @@ impl Board {
     }
 
     pub fn filter_moves_by_check(&self, mvs: &mut Vec<Move>, color: Color) {
-        let check_restriction = self.position.check_restrictions();
+        let check_restriction = self.checkers;
         let ep_pawn = if let Some(sq) = self.ep_target {
             if sq.rank() == 2 {
                 Square(24 + sq.file())
@@ -48,18 +48,18 @@ impl Board {
         };
 
         mvs.retain(|mv| {
-            self.position[mv.origin].is_kind(PieceKind::King)
+            self[mv.origin].is_kind(PieceKind::King)
                 || !(check_restriction & Bitboard::from(mv.dest)).is_empty()
-                || (self.position[mv.origin] == Piece::pawn(color)
+                || (self[mv.origin] == Piece::pawn(color)
                     && Some(mv.dest) == self.ep_target
                     && Bitboard::from(ep_pawn) == check_restriction)
         });
     }
 
     fn king_moves(&self, mvs: &mut Vec<Move>, color: Color) {
-        let attacks = self.position.attacks();
-        let free = (self.position[Piece::Empty] | self.position[!color]) & !attacks;
-        let initial = self.position[Piece::king(color)];
+        let attacks = self.attacks;
+        let free = (self[Piece::Empty] | self[!color]) & !attacks;
+        let initial = self[Piece::king(color)];
 
         for d in ALL_DIRS {
             moves(mvs, initial, Bitboard(0), free & d.filter(), d.offset());
@@ -73,26 +73,26 @@ impl Board {
         let qs_check = Bitboard(0b00111000 << filter_offset);
         let castle_offset = if color == Color::White { 0 } else { 2 };
         if self.castle[castle_offset]
-            && self.position[Piece::Empty] & ks_filter == ks_filter
+            && self[Piece::Empty] & ks_filter == ks_filter
             && (attacks & ks_check).is_empty()
         {
             moves(
                 mvs,
                 initial,
                 Bitboard(0),
-                self.position[Piece::Empty],
+                self[Piece::Empty],
                 Dir::East.offset() * 2,
             );
         }
         if self.castle[1 + castle_offset]
-            && self.position[Piece::Empty] & qs_filter == qs_filter
+            && self[Piece::Empty] & qs_filter == qs_filter
             && (attacks & qs_check).is_empty()
         {
             moves(
                 mvs,
                 initial,
                 Bitboard(0),
-                self.position[Piece::Empty],
+                self[Piece::Empty],
                 Dir::West.offset() * 2,
             );
         }
@@ -104,9 +104,9 @@ impl Board {
         } else {
             Dir::South
         };
-        let free = self.position[Piece::Empty];
+        let free = self[Piece::Empty];
 
-        let pins = self.position.pins();
+        let pins = self.pins;
         let unpinned_pieces = !pins & initial;
         let pinned_pieces = pins & initial;
         // Single push
@@ -124,7 +124,7 @@ impl Board {
         // Pinned double and single push
         for square in pp {
             let initial: Bitboard = square.into();
-            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
+            let pin: Bitboard = self.pin_on_square(square).unwrap().into();
             moves_with_promotions(mvs, initial, Bitboard(0), free & pin, color, dir.offset());
             moves_with_promotions(
                 mvs,
@@ -137,7 +137,7 @@ impl Board {
         }
 
         let ep_map: Bitboard = if let Some(sq) = self.ep_target {
-            let king = self.position.king(color);
+            let king = self.king(color);
             let ep_pawn = if sq.rank() == 2 {
                 Square(24 + sq.file())
             } else {
@@ -145,10 +145,10 @@ impl Board {
             };
             if let Some(r) = Ray::from(king, ep_pawn) {
                 let pieces: Vec<Piece> = r.into_iter().filter_map(|sqr| {
-                    if self.position[sqr] == Piece::Empty {
+                    if self[sqr] == Piece::Empty {
                         None
                     } else {
-                        Some(self.position[sqr])
+                        Some(self[sqr])
                     }
                 }).collect();
                 if (r.dir == Dir::East || r.dir == Dir::West)
@@ -167,7 +167,7 @@ impl Board {
         } else {
             Bitboard(0)
         };
-        let cap = self.position[!color] | ep_map;
+        let cap = self[!color] | ep_map;
 
         let left_attack = if color == Color::White {
             Dir::NorWest
@@ -184,7 +184,7 @@ impl Board {
         );
         for square in pinned_pieces {
             let bb: Bitboard = square.into();
-            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
+            let pin: Bitboard = self.pin_on_square(square).unwrap().into();
             moves_with_promotions(
                 mvs,
                 bb,
@@ -209,7 +209,7 @@ impl Board {
             right_attack.offset(),
         );
         for square in pinned_pieces {
-            let pin: Bitboard = self.position.pin_on_square(square).unwrap().into();
+            let pin: Bitboard = self.pin_on_square(square).unwrap().into();
             moves_with_promotions(
                 mvs,
                 square.into(),
@@ -255,12 +255,12 @@ impl Board {
                 Dir::NorWest.filter(),
             ),
         ];
-        let cap = self.position[!color] | self.position[Piece::Empty];
+        let cap = self[!color] | self[Piece::Empty];
         if cap.is_empty() {
             return;
         };
 
-        let unpinned_pieces = initial & !self.position.pins();
+        let unpinned_pieces = initial & !self.pins;
         for (d, mask) in dirs {
             moves(mvs, unpinned_pieces, Bitboard(0), cap & mask, d);
         }
@@ -270,13 +270,13 @@ impl Board {
     // Otherwise will prevent sliding moves from getting to where they can stop check
     fn rook_moves(&self, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
         let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
-        let cap = self.position[!color];
-        let free = self.position[Piece::Empty];
+        let cap = self[!color];
+        let free = self[Piece::Empty];
         if free.is_empty() && cap.is_empty() {
             return;
         }
 
-        let pins = self.position.pins();
+        let pins = self.pins;
         let unpinned_pieces = initial & !pins;
         let pinned_pieces: Bitboard = initial & pins;
 
@@ -291,8 +291,8 @@ impl Board {
         }
         for square in pinned_pieces {
             let i: Bitboard = square.into();
-            let pin = self.position.pin_on_square(square).unwrap();
-            if dirs.contains(&pin.dir) {
+            let pin = self.pin_on_square(square).unwrap();
+            if pin.dir.piece_kind() == PieceKind::Rook {
                 moves(
                     mvs,
                     i,
@@ -312,13 +312,13 @@ impl Board {
     }
     fn bishop_moves(&self, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
         let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
-        let cap = self.position[!color];
-        let free = self.position[Piece::Empty];
+        let cap = self[!color];
+        let free = self[Piece::Empty];
         if free.is_empty() && cap.is_empty() {
             return;
         }
 
-        let pins = self.position.pins();
+        let pins = self.pins;
         let unpinned_pieces = initial & !pins;
         let pinned_pieces = initial & pins;
 
@@ -333,7 +333,7 @@ impl Board {
         }
         for square in pinned_pieces {
             let i: Bitboard = square.into();
-            let pin = self.position.pin_on_square(square).unwrap();
+            let pin = self.pin_on_square(square).unwrap();
             if dirs.contains(&pin.dir) {
                 moves(
                     mvs,
@@ -358,6 +358,7 @@ impl Board {
     }
 }
 
+#[inline(always)]
 fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) {
     let mut mv = initial << dir;
     let mut end = mv & free;
@@ -380,6 +381,7 @@ fn moves(mvs: &mut Vec<Move>, initial: Bitboard, free: Bitboard, cap: Bitboard, 
     }
 }
 
+#[inline(always)]
 fn moves_with_promotions(
     mvs: &mut Vec<Move>,
     initial: Bitboard,

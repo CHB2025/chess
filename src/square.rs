@@ -19,7 +19,7 @@ impl str::FromStr for Square {
     type Err = BoardError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !is_valid_position(s) {
+        if !is_valid_square(s) {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "Invalid position format",
@@ -91,8 +91,6 @@ impl Square {
     pub fn file(&self) -> u8 {
         self.0 & 7
     }
-    //Are these useful in any situation?
-    // Maybe quickly calculating if check is possible by a given piece
     pub fn diagonal(&self) -> u8 {
         self.rank().wrapping_sub(self.file())  & 15 
     }
@@ -101,16 +99,22 @@ impl Square {
     }
 
     pub fn checked_add(self, dir: Dir) -> Option<Self> {
-        let bb: Bitboard = self.into();
-        let new_mask: Bitboard = bb << dir;
-        new_mask.first_square()
+        //let bb: Bitboard = self.into();
+        //let new_mask: Bitboard = bb << dir;
+        //new_mask.first_square()
+        (Bitboard::from(self) << dir).first_square()
+    }
+
+    pub fn new_checked_add(self, dir: Dir) -> Option<Self> {
+        let new_sqr = Square(self.0.checked_add_signed(dir.offset() as i8)?);
+
     }
 
 }
 
-fn is_valid_position(position: &str) -> bool {
-    let p_bytes = position.as_bytes();
-    if position.len() != 2 || p_bytes.len() != 2 {
+fn is_valid_square(square: &str) -> bool {
+    let p_bytes = square.as_bytes();
+    if square.len() != 2 || p_bytes.len() != 2 {
         return false;
     }
 

@@ -23,7 +23,6 @@ pub struct Position {
 
 impl FromStr for Position {
     type Err = BoardError;
-
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut position = Self::empty();
         let (b, ctm) = s.split_once(' ').ok_or(BoardError::new(

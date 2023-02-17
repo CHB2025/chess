@@ -4,7 +4,7 @@ use crate::{Dir, Square};
 
 use self::iter::RayIterator;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ray {
     pub origin: Square,
     pub dir: Dir,
@@ -29,6 +29,7 @@ impl Ray {
         diff.is_positive() == self.dir.offset().is_positive() && diff % self.dir.offset() == 0
     }
 
+    #[inline(always)]
     pub fn from(origin: Square, other: Square) -> Option<Self> {
         if origin == other {
             return None;

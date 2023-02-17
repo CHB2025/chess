@@ -4,6 +4,8 @@ use crate::error::{BoardError, ErrorKind};
 
 pub mod init;
 
+pub const PROMO_PIECES: [PieceKind; 4] = [PieceKind::Queen, PieceKind::Bishop, PieceKind::Knight, PieceKind::Rook];
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub enum Piece {
     Filled(PieceKind, Color),

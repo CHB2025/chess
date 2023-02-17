@@ -1,6 +1,7 @@
 use crate::{
     dir::Dir,
     error::{BoardError, ErrorKind},
+    move_gen,
     moves::{Move, MoveState},
     piece::{Color, Piece, PieceKind},
     square::Square,
@@ -17,47 +18,112 @@ impl Board {
                 "Attempted to move wrong color",
             ));
         }
-        let moves = self.moves_for_square(mv.origin);
+        //let moves = self.moves_for_square(mv.origin);
+        let moves = move_gen::for_square(self, mv.origin);
         if !moves.contains(&mv) {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
         }
         //Move is valid, and legal
 
-        let capture = self
-            .position
-            .action(|t| -> Piece {
-                let is_ep = if let Some(e) = self.ep_target {
-                    e == mv.dest && piece.is_kind(PieceKind::Pawn)
-                } else {
-                    false
-                };
+        unsafe {
+            self.make_unchecked(mv);
+        }
 
-                let mut capture = t.r#move(mv.origin, mv.dest);
-                if is_ep {
-                    let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
-                    capture = t.clear(index)
-                }
-                if mv.promotion != Piece::Empty {
-                    t.put(mv.promotion, mv.dest);
-                }
-                let is_castle = piece.is_kind(PieceKind::King)
-                    && mv.dest.index().abs_diff(mv.origin.index()) == 2;
-                let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
-                if is_castle {
-                    let r_origin = if is_ks_castle {
-                        mv.origin.index() & !0b111
-                    } else {
-                        mv.origin.index() | 0b111
-                    };
-                    let r_dest = if is_ks_castle {
-                        r_origin as i32 + 2 * Dir::West.offset()
-                    } else {
-                        r_origin as i32 + 3 * Dir::East.offset()
-                    } as u8;
-                    t.r#move(Square(r_origin), Square(r_dest));
-                }
-                capture
-            });
+        Ok(())
+    }
+
+    pub fn unmake(&mut self) {
+        let ms = match self.move_history.pop() {
+            Some(m) => m,
+            None => return,
+        };
+        let piece = match ms.mv.promotion {
+            Piece::Empty => self[ms.mv.dest],
+            Piece::Filled(_, color) => Piece::pawn(color),
+        };
+        self.increment_hash(ms, piece);
+
+        self.action(|t| {
+            if ms.mv.promotion != Piece::Empty {
+                t.put(piece, ms.mv.dest);
+            }
+            t.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
+
+            let is_ep = if let Some(e) = ms.ep_target {
+                e.index() == ms.mv.dest.index() && piece.is_kind(PieceKind::Pawn)
+            } else {
+                false
+            };
+
+            if is_ep {
+                let bit_index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
+                let sqr = Square(bit_index);
+                t.put(ms.capture, sqr);
+                t.clear(ms.mv.dest);
+            }
+
+            let is_castle = piece.is_kind(PieceKind::King)
+                && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
+            let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
+            if is_castle {
+                let r_origin = Square(if is_ks_castle {
+                    ms.mv.origin.index() & !0b111
+                } else {
+                    ms.mv.origin.index() | 0b111
+                });
+                let r_dest = Square(if is_ks_castle {
+                    r_origin.index() as i32 + 2 * Dir::West.offset()
+                } else {
+                    r_origin.index() as i32 + 3 * Dir::East.offset()
+                } as u8);
+                t.r#move(r_dest, r_origin);
+            }
+        });
+
+        // Resetting metadata
+        if piece.is_color(Color::Black) {
+            self.fullmove -= 1;
+        }
+        self.castle = ms.castle;
+        self.ep_target = ms.ep_target;
+        self.halfmove = ms.halfmove;
+    }
+
+    pub unsafe fn make_unchecked(&mut self, mv: Move) {
+        let piece = self[mv.origin];
+        let capture = self.action(|t| -> Piece {
+            let is_ep = if let Some(e) = t.board().ep_target {
+                e == mv.dest && piece.is_kind(PieceKind::Pawn)
+            } else {
+                false
+            };
+
+            let mut capture = t.r#move(mv.origin, mv.dest);
+            if is_ep {
+                let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
+                capture = t.clear(index)
+            }
+            if mv.promotion != Piece::Empty {
+                t.put(mv.promotion, mv.dest);
+            }
+            let is_castle =
+                piece.is_kind(PieceKind::King) && mv.dest.index().abs_diff(mv.origin.index()) == 2;
+            let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
+            if is_castle {
+                let r_origin = if is_ks_castle {
+                    mv.origin.index() & !0b111
+                } else {
+                    mv.origin.index() | 0b111
+                };
+                let r_dest = if is_ks_castle {
+                    r_origin as i32 + 2 * Dir::West.offset()
+                } else {
+                    r_origin as i32 + 3 * Dir::East.offset()
+                } as u8;
+                t.r#move(Square(r_origin), Square(r_dest));
+            }
+            capture
+        });
 
         let move_state = MoveState {
             mv,
@@ -117,65 +183,6 @@ impl Board {
             }
         }
         self.increment_hash(move_state, piece);
-        Ok(())
-    }
-
-    pub fn unmake(&mut self) {
-        let ms = match self.move_history.pop() {
-            Some(m) => m,
-            None => return,
-        };
-        let piece = match ms.mv.promotion {
-            Piece::Empty => self[ms.mv.dest],
-            Piece::Filled(_, color) => Piece::pawn(color),
-        };
-        self.increment_hash(ms, piece);
-
-        self.position
-            .action(|t| {
-                if ms.mv.promotion != Piece::Empty {
-                    t.put(piece, ms.mv.dest);
-                }
-                t.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
-
-                let is_ep = if let Some(e) = ms.ep_target {
-                    e.index() == ms.mv.dest.index() && piece.is_kind(PieceKind::Pawn)
-                } else {
-                    false
-                };
-
-                if is_ep {
-                    let bit_index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
-                    let sqr = Square(bit_index);
-                    t.put(ms.capture, sqr);
-                    t.clear(ms.mv.dest);
-                }
-
-                let is_castle = piece.is_kind(PieceKind::King)
-                    && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
-                let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
-                if is_castle {
-                    let r_origin = Square(if is_ks_castle {
-                        ms.mv.origin.index() & !0b111
-                    } else {
-                        ms.mv.origin.index() | 0b111
-                    });
-                    let r_dest = Square(if is_ks_castle {
-                        r_origin.index() as i32 + 2 * Dir::West.offset()
-                    } else {
-                        r_origin.index() as i32 + 3 * Dir::East.offset()
-                    } as u8);
-                    t.r#move(r_dest, r_origin);
-                }
-            });
-
-        // Resetting metadata
-        if piece.is_color(Color::Black) {
-            self.fullmove -= 1;
-        }
-        self.castle = ms.castle;
-        self.ep_target = ms.ep_target;
-        self.halfmove = ms.halfmove;
     }
 }
 
@@ -183,15 +190,15 @@ impl Board {
 mod tests {
     use std::str::FromStr;
 
-    use crate::Bitboard;
     use crate::piece::Color;
+    use crate::Bitboard;
     use crate::{moves::Move, piece::Piece, Board};
 
     impl Board {
         fn is_valid(&self) -> bool {
-            let white_pieces = self.position[Color::White];
-            let black_pieces = self.position[Color::Black];
-            let empty = self.position[Piece::Empty];
+            let white_pieces = self[Color::White];
+            let black_pieces = self[Color::Black];
+            let empty = self[Piece::Empty];
             (white_pieces & black_pieces).is_empty()
                 && (white_pieces & empty).is_empty()
                 && (black_pieces & empty).is_empty()

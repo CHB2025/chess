@@ -1,5 +1,5 @@
 mod board;
-pub use board::Board;
+pub use board::{move_gen, Board};
 
 mod ray;
 pub use ray::Ray;
@@ -12,7 +12,7 @@ pub use moves::Move;
 pub(crate) use moves::MoveState;
 
 mod piece;
-pub use piece::{Piece, PieceKind, Color};
+pub use piece::{Color, Piece, PieceKind};
 
 mod error;
 pub use error::{BoardError, ErrorKind};

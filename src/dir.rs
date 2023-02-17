@@ -10,6 +10,18 @@ pub const ALL_DIRS: [Dir; 8] = [
     Dir::West,
     Dir::NorWest,
 ];
+pub const ROOK_DIRS: [Dir; 4] = [
+    Dir::North,
+    Dir::East,
+    Dir::South,
+    Dir::West,
+];
+pub const BISHOP_DIRS: [Dir; 4] = [
+    Dir::NorEast,
+    Dir::SouEast,
+    Dir::SouWest,
+    Dir::NorWest,
+];
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Dir {
@@ -24,7 +36,7 @@ pub enum Dir {
 }
 
 impl Dir {
-    pub fn offset(&self) -> i32 {
+    pub const fn offset(&self) -> i32 {
         match self {
             Dir::North => -8,
             Dir::NorEast => -9,
@@ -37,7 +49,7 @@ impl Dir {
         }
     }
 
-    pub fn opposite(&self) -> Dir {
+    pub const fn opposite(&self) -> Dir {
         match self {
             Dir::North => Dir::South,
             Dir::NorEast => Dir::SouWest,
@@ -50,7 +62,7 @@ impl Dir {
         }
     }
 
-    pub fn filter(&self) -> Bitboard {
+    pub const fn filter(&self) -> Bitboard {
         match self {
             Dir::North => ALL,
             Dir::NorEast => NOT_A_FILE,
@@ -66,11 +78,19 @@ impl Dir {
 
     /// Returns the piece (either rook or bishop) that moves in this direction. Ignores Queen,
     /// which moves in all directions, and King, Knight, and Pawn, which have unique movement.
-    pub fn piece_kind(&self) -> PieceKind {
+    pub const fn piece_kind(&self) -> PieceKind {
         if self.offset().abs() == 8 || self.offset().abs() == 1 {
             PieceKind::Rook
         } else {
             PieceKind::Bishop
+        }
+    }
+
+    pub const fn horizontal_offset(&self) -> i32 {
+        match self {
+            Dir::North | Dir::South => 0,
+            Dir::NorEast | Dir::SouEast | Dir::East => -1,
+            Dir::NorWest | Dir::SouWest | Dir::West => 1,
         }
     }
 }
