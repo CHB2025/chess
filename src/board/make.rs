@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl Board {
-    pub fn make<'a>(&'a mut self, mv: Move) -> Result<(), BoardError> {
+    pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
         let piece = self[mv.origin];
         if !piece.is_color(self.color_to_move()) {
             // Piece is not empty and matches color
@@ -24,8 +24,8 @@ impl Board {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
         }
         //Move is valid, and legal
-
         unsafe {
+            //let moves = self.moves_for_square(mv.origin);
             self.make_unchecked(mv);
         }
 
@@ -41,7 +41,7 @@ impl Board {
             Piece::Empty => self[ms.mv.dest],
             Piece::Filled(_, color) => Piece::pawn(color),
         };
-        self.increment_hash(ms, piece);
+        self.update_hash(ms);
 
         self.action(|t| {
             if ms.mv.promotion != Piece::Empty {
@@ -182,7 +182,7 @@ impl Board {
                 self.castle[ci_offset] = false;
             }
         }
-        self.increment_hash(move_state, piece);
+        self.update_hash(move_state);
     }
 }
 

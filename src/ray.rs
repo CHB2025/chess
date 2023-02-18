@@ -23,6 +23,7 @@ impl IntoIterator for Ray {
 }
 
 impl Ray {
+    #[inline(always)]
     pub fn contains(&self, square: Square) -> bool {
         let diff = square.index() as i32 - self.origin.index() as i32;
         //possible && diff.is_positive() == self.dir.offset().is_positive()

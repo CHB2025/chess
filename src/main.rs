@@ -1,6 +1,6 @@
 use std::{io, env};
 
-use chess_board::{Board, BoardError, Move};
+use chb_chess::{Board, BoardError, Move};
 
 fn main() -> io::Result<()> {
     let mut chess = Board::default();

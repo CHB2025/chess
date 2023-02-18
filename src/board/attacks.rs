@@ -6,9 +6,17 @@ const UP: i32 = -8;
 const DOWN: i32 = 8;
 const LEFT: i32 = 1;
 const RIGHT: i32 = -1;
+
 impl Board {
     
+    #[inline]
+    pub(super) fn update_position(&mut self) {
+        self.update_pins_and_checks();
+        self.attacks = self.gen_attacks(!self.color_to_move);
+    }
+
     // Only for determining check
+    #[inline]
     pub(super) fn gen_attacks(&self, color: Color) -> Bitboard {
         let queen = self[Piece::queen(color)];
         let mut output = self.pawn_attacks(self[Piece::pawn(color)], color);
@@ -18,11 +26,8 @@ impl Board {
         output | self.knight_attacks(self[Piece::knight(color)])
     }
     
-    pub(super) fn update_position(&mut self) {
-        self.update_pins_and_checks();
-        self.attacks = self.gen_attacks(!self.color_to_move);
-    }
 
+    #[inline]
     fn pawn_attacks(&self, initial: Bitboard, for_color: Color) -> Bitboard {
         let vertical = if for_color == Color::White {
             Dir::North.offset()
@@ -45,12 +50,14 @@ impl Board {
         output
     }
 
+    #[inline]
     fn king_attacks(&self, initial: Bitboard) -> Bitboard {
         ALL_DIRS.into_iter().fold(Bitboard(0), |o, d| {
             o | moves(initial, Bitboard(0), d.filter(), d.offset())
         })
     }
 
+    #[inline]
     fn bishop_attacks(&self, initial: Bitboard, color: Color) -> Bitboard {
         let f = self[Piece::Empty] | self[Piece::king(!color)];
         let o = !f;
@@ -64,6 +71,7 @@ impl Board {
         output
     }
 
+    #[inline]
     fn rook_attacks(&self, initial: Bitboard, color: Color) -> Bitboard {
         let f = self[Piece::Empty] | self[Piece::king(!color)];
         let o = !f;
@@ -77,6 +85,7 @@ impl Board {
         output
     }
 
+    #[inline]
     fn knight_attacks(&self, initial: Bitboard) -> Bitboard {
         let not_gh = Bitboard(0xfcfcfcfcfcfcfcfc);
         let not_ab = Bitboard(0x3f3f3f3f3f3f3f3f);
@@ -99,6 +108,7 @@ impl Board {
         output
     }
 
+    #[inline]
     pub(super) fn update_pins_and_checks(&mut self) {
         let mut p = EMPTY;
         let mut c = ALL;
@@ -140,6 +150,7 @@ impl Board {
     }
 }
 
+#[inline]
 fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) -> Bitboard {
     let mut output = Bitboard(0);
     let shift = |x| {
@@ -163,6 +174,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) -> Bitboard
     output
 }
 
+#[inline]
 fn pins(
     initial: Bitboard,
     free: Bitboard,

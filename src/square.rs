@@ -81,27 +81,30 @@ impl TryFrom<u64> for Square {
 }
 
 impl Square {
+    #[inline(always)]
     pub fn index(&self) -> u8 {
         self.0
     }
 
+    #[inline(always)]
     pub fn rank(&self) -> u8 {
         self.0 >> 3
     }
+    #[inline(always)]
     pub fn file(&self) -> u8 {
         self.0 & 7
     }
+    #[inline(always)]
     pub fn diagonal(&self) -> u8 {
         self.rank().wrapping_sub(self.file())  & 15 
     }
+    #[inline(always)]
     pub fn anti_diagonal(&self) -> u8 {
         (self.rank() + self.file()) ^ 7
     }
 
+    #[inline(always)]
     pub fn checked_add(self, dir: Dir) -> Option<Self> {
-        //let bb: Bitboard = self.into();
-        //let new_mask: Bitboard = bb << dir;
-        //new_mask.first_square()
         (Bitboard::from(self) << dir).first_square()
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "chess_board"
+name = "chb_chess"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,10 @@ edition = "2021"
 nohash-hasher = "0.2.0"
 rand = "0.8.5"
 regex = "1"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "moves"
+harness = false

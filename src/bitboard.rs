@@ -20,14 +20,17 @@ impl Bitboard {
         Bitboard(initial)
     }
 
+    #[inline(always)]
     pub fn first_square(&self) -> Option<Square> {
         self.0.trailing_zeros().try_into().ok()
     }
 
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.0 == 0
     }
 
+    #[inline(always)]
     pub fn between(sq1: Square, sq2: Square) -> Bitboard {
         match Ray::from(sq1, sq2) {
             Some(r) => {
@@ -47,10 +50,12 @@ impl Bitboard {
         }
     }
 
+    #[inline(always)]
     pub fn count_squares(&self) -> u32 {
         self.0.count_ones()
     }
 
+    #[inline(always)]
     pub fn contains(&self, sq: Square) -> bool {
         *self & sq.into() == sq.into()
     }

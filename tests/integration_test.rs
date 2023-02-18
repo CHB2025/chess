@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use chess_board::Board;
+use chb_chess::Board;
 
 struct PerftResult {
     name: String,

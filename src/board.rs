@@ -233,7 +233,7 @@ impl Board {
         let piece = self[square];
         match piece {
             Piece::Filled(_, color) => {
-                if self.pins & Bitboard::from(square) == Bitboard::from(square) {
+                if self.pins.contains(square)  {
                     Ray::from(self.king(color), square)
                 } else {
                     None
@@ -243,6 +243,7 @@ impl Board {
         }
     }
 
+    #[inline]
     fn action<'a, T>(&'a mut self, arg: impl FnOnce(&mut Action<'a>) -> T) -> T {
         let mut action = Action { board: self };
         let response = arg(&mut action);

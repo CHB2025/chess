@@ -20,6 +20,7 @@ use crate::{
 /// // There should be 20 legal moves.
 /// assert_eq!(legal_moves.len(), 20);
 /// ```
+#[inline]
 pub fn legal(board: &Board) -> Vec<Move> {
     let mut mv_list = Vec::with_capacity(50);
     // Fill in moves
@@ -100,6 +101,7 @@ pub fn for_square(board: &Board, sqr: Square) -> Vec<Move> {
     move_list
 }
 
+#[inline(always)]
 fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     let ep_pawn = if let Some(sq) = board.ep_target {
         if color == Color::White {
@@ -120,6 +122,7 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     });
 }
 
+#[inline(always)]
 fn king_moves(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     let origin = board.king(color);
     let free = (board[Piece::Empty] | board[!color]) & !board.attacks;
@@ -162,6 +165,7 @@ fn king_moves(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     }
 }
 
+#[inline(always)]
 fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
     let filter_offset = if color == Color::White { 56 } else { 0 };
     let ks_filter = Bitboard(0b00000110 << filter_offset);
@@ -174,6 +178,7 @@ fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
         && (board.attacks & ks_check).is_empty()
 }
 
+#[inline(always)]
 fn able_to_castle_queenside(board: &Board, color: Color) -> bool {
     let filter_offset = if color == Color::White { 56 } else { 0 };
     let qs_filter = Bitboard(0b01110000 << filter_offset);
@@ -185,6 +190,7 @@ fn able_to_castle_queenside(board: &Board, color: Color) -> bool {
         && (board.attacks & qs_check).is_empty()
 }
 
+#[inline(always)]
 fn pawn_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
     let promotions: Vec<Piece> = PROMO_PIECES
         .into_iter()
@@ -259,6 +265,7 @@ fn pawn_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Colo
     }
 }
 
+#[inline(always)]
 fn ep_is_pinned(board: &Board) -> bool {
     match board.ep_target {
         None => true,
@@ -320,6 +327,7 @@ fn push_move_with_promotions(
     }
 }
 
+#[inline(always)]
 fn sliding_moves(
     board: &Board,
     mvs: &mut Vec<Move>,
@@ -398,6 +406,7 @@ fn sliding_moves(
     }
 }
 
+#[inline(always)]
 fn knight_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
     let cap = board[!color] | board[Piece::Empty];
 
