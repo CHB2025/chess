@@ -12,7 +12,7 @@ pub const NOT_H_FILE: Bitboard = Bitboard(0xfefefefefefefefe);
 
 // Should make new method instead of public access to value
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Bitboard(pub u64);
+pub struct Bitboard(u64);
 
 impl Bitboard {
 

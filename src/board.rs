@@ -1,13 +1,12 @@
 use std::{default, fmt};
 
-use crate::{Bitboard, Color, Move, MoveState, Piece, Ray, Square};
+use crate::{Bitboard, Check, Color, Move, MoveState, Piece, Ray, Square, ALL, EMPTY};
 
 use self::action::Action;
 
 mod action;
 mod attacks;
 mod fen;
-mod generate;
 mod hash;
 mod index;
 mod make;
@@ -20,7 +19,7 @@ pub struct Board {
     color_bitboards: [Bitboard; 2],
     attacks: Bitboard,
     pins: Bitboard,
-    checkers: Bitboard,
+    check: Check,
     color_to_move: Color,
     pieces: [Piece; 64],
     castle: [bool; 4],
@@ -64,24 +63,24 @@ impl default::Default for Board {
     fn default() -> Self {
         let mut response = Self {
             bitboards: [
-                Bitboard(0x08 << 56),
-                Bitboard(0x08),
-                Bitboard(0x10 << 56),
-                Bitboard(0x10),
-                Bitboard(0x24 << 56),
-                Bitboard(0x24),
-                Bitboard(0x42 << 56),
-                Bitboard(0x42),
-                Bitboard(0x81 << 56),
-                Bitboard(0x81),
-                Bitboard(0xff << 48),
-                Bitboard(0xff << 8),
-                Bitboard(0xffffffff << 16),
+                Bitboard::new(0x08 << 56),
+                Bitboard::new(0x08),
+                Bitboard::new(0x10 << 56),
+                Bitboard::new(0x10),
+                Bitboard::new(0x24 << 56),
+                Bitboard::new(0x24),
+                Bitboard::new(0x42 << 56),
+                Bitboard::new(0x42),
+                Bitboard::new(0x81 << 56),
+                Bitboard::new(0x81),
+                Bitboard::new(0xff << 48),
+                Bitboard::new(0xff << 8),
+                Bitboard::new(0xffffffff << 16),
             ],
-            color_bitboards: [Bitboard(0xffff << 48), Bitboard(0xffff)],
-            attacks: Bitboard(0xffff7e),
-            pins: Bitboard(0),
-            checkers: Bitboard(!0),
+            color_bitboards: [Bitboard::new(0xffff << 48), Bitboard::new(0xffff)],
+            attacks: Bitboard::new(0xffff7e),
+            pins: EMPTY,
+            check: Check::None,
             pieces: [
                 Piece::rook(Color::Black),
                 Piece::knight(Color::Black),
@@ -175,24 +174,24 @@ impl Board {
     pub fn empty() -> Self {
         let mut e = Self {
             bitboards: [
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(0),
-                Bitboard(u64::MAX),
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                EMPTY,
+                ALL,
             ],
-            color_bitboards: [Bitboard(0); 2],
-            attacks: Bitboard(0),
-            pins: Bitboard(0),
-            checkers: Bitboard(!0),
+            color_bitboards: [EMPTY; 2],
+            attacks: EMPTY,
+            pins: EMPTY,
+            check: Check::None,
             pieces: [Piece::Empty; 64],
             color_to_move: Color::White,
             castle: [false; 4],
@@ -233,7 +232,7 @@ impl Board {
         let piece = self[square];
         match piece {
             Piece::Filled(_, color) => {
-                if self.pins.contains(square)  {
+                if self.pins.contains(square) {
                     Ray::from(self.king(color), square)
                 } else {
                     None
@@ -250,6 +249,16 @@ impl Board {
         action.complete();
         response
     }
+
+    fn check_move_limits(&self) -> Bitboard {
+        match self.check {
+            Check::None => ALL,
+            Check::Single(sqr) => {
+                Bitboard::between(self.king(self.color_to_move), sqr) | sqr.into()
+            }
+            Check::Double => EMPTY,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -263,9 +272,9 @@ mod tests {
             game.to_fen(),
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         );
-        for mv in game.moves() {
+        for mv in game.legal_moves() {
             println!("{}", mv);
         }
-        assert_eq!(game.moves().len(), 20)
+        assert_eq!(game.legal_moves().len(), 20)
     }
 }

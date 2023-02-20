@@ -113,12 +113,14 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
         EMPTY
     };
 
+    let check_limits = board.check_move_limits();
+
     mvs.retain(|mv| {
         board[mv.origin].is_kind(PieceKind::King)
-            || board.checkers.contains(mv.dest)
+            || check_limits.contains(mv.dest)
             || board[mv.origin].is_kind(PieceKind::Pawn)
                 && Some(mv.dest) == board.ep_target
-                && ep_pawn == board.checkers
+                && ep_pawn == check_limits
     });
 }
 
@@ -168,8 +170,8 @@ fn king_moves(board: &Board, mvs: &mut Vec<Move>, color: Color) {
 #[inline(always)]
 fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
     let filter_offset = if color == Color::White { 56 } else { 0 };
-    let ks_filter = Bitboard(0b00000110 << filter_offset);
-    let ks_check = Bitboard(0b00001110 << filter_offset);
+    let ks_filter = Bitboard::new(0b00000110 << filter_offset);
+    let ks_check = Bitboard::new(0b00001110 << filter_offset);
 
     let castle_offset = if color == Color::White { 0 } else { 2 };
 
@@ -181,8 +183,8 @@ fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
 #[inline(always)]
 fn able_to_castle_queenside(board: &Board, color: Color) -> bool {
     let filter_offset = if color == Color::White { 56 } else { 0 };
-    let qs_filter = Bitboard(0b01110000 << filter_offset);
-    let qs_check = Bitboard(0b00111000 << filter_offset);
+    let qs_filter = Bitboard::new(0b01110000 << filter_offset);
+    let qs_check = Bitboard::new(0b00111000 << filter_offset);
     let castle_offset = if color == Color::White { 0 } else { 2 };
 
     board.castle[castle_offset + 1]

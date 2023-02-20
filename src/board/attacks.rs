@@ -1,4 +1,4 @@
-use crate::{Piece, Color, Bitboard, Dir, ALL_DIRS, NOT_A_FILE, NOT_H_FILE, EMPTY, ALL};
+use crate::{Piece, Color, Bitboard, Dir, ALL_DIRS, NOT_A_FILE, NOT_H_FILE, EMPTY, Check};
 use super::Board;
 
 
@@ -37,13 +37,13 @@ impl Board {
 
         let mut output = moves(
             initial,
-            Bitboard(0),
+            EMPTY,
             NOT_H_FILE,
             vertical + Dir::West.offset(),
         );
         output |= moves(
             initial,
-            Bitboard(0),
+            EMPTY,
             NOT_A_FILE,
             vertical + Dir::East.offset(),
         );
@@ -52,8 +52,8 @@ impl Board {
 
     #[inline]
     fn king_attacks(&self, initial: Bitboard) -> Bitboard {
-        ALL_DIRS.into_iter().fold(Bitboard(0), |o, d| {
-            o | moves(initial, Bitboard(0), d.filter(), d.offset())
+        ALL_DIRS.into_iter().fold(EMPTY, |o, d| {
+            o | moves(initial, EMPTY, d.filter(), d.offset())
         })
     }
 
@@ -64,7 +64,7 @@ impl Board {
 
         let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
 
-        let mut output = Bitboard(0);
+        let mut output = EMPTY;
         for dir in dirs {
             output |= moves(initial, f & dir.filter(), o & dir.filter(), dir.offset());
         }
@@ -78,7 +78,7 @@ impl Board {
 
         let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
 
-        let mut output = Bitboard(0);
+        let mut output = EMPTY;
         for dir in dirs {
             output |= moves(initial, f & dir.filter(), o & dir.filter(), dir.offset());
         }
@@ -87,8 +87,8 @@ impl Board {
 
     #[inline]
     fn knight_attacks(&self, initial: Bitboard) -> Bitboard {
-        let not_gh = Bitboard(0xfcfcfcfcfcfcfcfc);
-        let not_ab = Bitboard(0x3f3f3f3f3f3f3f3f);
+        let not_gh = Bitboard::new(0xfcfcfcfcfcfcfcfc);
+        let not_ab = Bitboard::new(0x3f3f3f3f3f3f3f3f);
 
         let dirs = [
             (UP + UP + RIGHT, NOT_A_FILE),
@@ -101,9 +101,9 @@ impl Board {
             (UP + UP + LEFT, NOT_H_FILE),
         ];
 
-        let mut output = Bitboard(0);
+        let mut output = EMPTY;
         for (dir, filter) in dirs {
-            output |= moves(initial, Bitboard(0), filter, dir);
+            output |= moves(initial, EMPTY, filter, dir);
         }
         output
     }
@@ -111,11 +111,11 @@ impl Board {
     #[inline]
     pub(super) fn update_pins_and_checks(&mut self) {
         let mut p = EMPTY;
-        let mut c = ALL;
+        let mut c = EMPTY;
         let color = self.color_to_move;
         if !self.king_exists(color) {
             self.pins = p;
-            self.checkers = c;
+            self.check = Check::None;
             return;
         }
 
@@ -131,28 +131,35 @@ impl Board {
             if is_pin {
                 p |= bitboard;
             } else {
-                c &= bitboard;
+                c |= bitboard;
             }
         }
 
+        if c.count_squares() < 2 {
         let pawn_attacks = self.pawn_attacks(initial, color) & self[Piece::pawn(!color)];
         if !pawn_attacks.is_empty(){
-            c &= pawn_attacks;
+            c |= pawn_attacks;
         }
+        }
+        
 
         let knight_attacks = self.knight_attacks(initial) & self[Piece::knight(!color)];
         if !knight_attacks.is_empty() {
-            c &= knight_attacks;
+            c |= knight_attacks;
         }
 
         self.pins = p;
-        self.checkers = c;
+        self.check = match c.count_squares() {
+            0 => Check::None,
+            1 => Check::Single(c.first_square().expect("match says there's a square")),
+            _ => Check::Double,
+        }
     }
 }
 
 #[inline]
 fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) -> Bitboard {
-    let mut output = Bitboard(0);
+    let mut output = EMPTY;
     let shift = |x| {
         if dir.is_positive() {
             x << dir
@@ -182,14 +189,13 @@ fn pins(
     def: Bitboard,
     dir: Dir,
 ) -> (Bitboard, bool) {
-    let mut output = Bitboard(0);
+    let mut output = EMPTY;
     let mut is_pin = false;
     let mut mv = initial << dir;
     let mut end = mv & free;
     let mut pin = mv & def;
 
     while !end.is_empty() || (!pin.is_empty() && !is_pin) {
-        output |= end;
         if !pin.is_empty() {
             output |= pin;
             is_pin = true;
@@ -204,6 +210,6 @@ fn pins(
         output |= attacks;
         (output, is_pin)
     } else {
-        (Bitboard(!0), false)
+        (EMPTY, false)
     }
 }

@@ -191,7 +191,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::piece::Color;
-    use crate::Bitboard;
+    use crate::ALL;
     use crate::{moves::Move, piece::Piece, Board};
 
     impl Board {
@@ -202,7 +202,7 @@ mod tests {
             (white_pieces & black_pieces).is_empty()
                 && (white_pieces & empty).is_empty()
                 && (black_pieces & empty).is_empty()
-                && white_pieces | black_pieces | empty == Bitboard(u64::MAX)
+                && white_pieces | black_pieces | empty == ALL
         }
     }
 
@@ -211,13 +211,14 @@ mod tests {
         let mut board =
             Board::from_fen("rnbqkbnr/ppp2ppp/3p4/3Pp3/8/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 3")
                 .unwrap();
+        let mv = board.legal_moves()[0];
         let m = Move::from_str("d5e6").unwrap();
         board.make(m).unwrap();
-        println!("{}", board);
         assert_eq!(
             board.to_fen(),
             "rnbqkbnr/ppp2ppp/3pP3/8/8/8/PPP1PPPP/RNBQKBNR b KQkq - 0 3"
-        )
+        );
+        assert!(board.is_valid());
     }
 
     #[test]
@@ -225,21 +226,14 @@ mod tests {
         let fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
         let mut board = Board::from_fen(fen).unwrap();
         let mvs = ["d7c8q", "b8a6", "c4a6"];
-        println!("Initial Board:\n{}", board);
         for mv in mvs {
             let m = Move::from_str(mv).unwrap();
-            if let Err(e) = board.make(m) {
-                println!("Error making move: {e}");
-                break;
-            };
-            println!("Board after making move {}:\n{}", m, board);
-            println!("Board is valid: {}", board.is_valid());
+            board.make(m).unwrap();
+            assert!(board.is_valid());
         }
         for mv in mvs.iter().rev() {
             board.unmake();
-            println!("Board after unmaking {}:\n{}", mv, board);
-            println!("Board is valid: {}", board.is_valid());
+            assert!(board.is_valid());
         }
-        println!("Board matches fen:\nNew: {}\nOld: {}", board.to_fen(), fen);
     }
 }

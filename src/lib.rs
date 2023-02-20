@@ -22,3 +22,6 @@ pub use dir::{Dir, ALL_DIRS};
 
 mod bitboard;
 pub use bitboard::{Bitboard, ALL, EMPTY, NOT_A_FILE, NOT_H_FILE};
+
+mod check;
+pub use check::Check;
