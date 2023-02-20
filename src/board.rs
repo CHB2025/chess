@@ -214,7 +214,6 @@ impl Board {
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
-        //self.moves()
         move_gen::legal(self)
     }
 

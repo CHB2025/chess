@@ -25,7 +25,6 @@ impl Board {
         }
         //Move is valid, and legal
         unsafe {
-            //let moves = self.moves_for_square(mv.origin);
             self.make_unchecked(mv);
         }
 
