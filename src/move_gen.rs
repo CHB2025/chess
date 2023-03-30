@@ -1,7 +1,7 @@
 use crate::{
     dir::{BISHOP_DIRS, ROOK_DIRS},
     piece::PROMO_PIECES,
-    Bitboard, Board, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL, ALL_DIRS, EMPTY,
+    Bitboard, Board, Check, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL, ALL_DIRS, EMPTY,
     NOT_A_FILE, NOT_H_FILE,
 };
 
@@ -27,38 +27,38 @@ pub fn legal(board: &Board) -> Vec<Move> {
     pawn_moves(
         board,
         &mut mv_list,
-        board[Piece::Filled(PieceKind::Pawn, board.color_to_move)],
-        board.color_to_move,
+        board[Piece::Filled(PieceKind::Pawn, board.color_to_move())],
+        board.color_to_move(),
     );
     knight_moves(
         board,
         &mut mv_list,
-        board[Piece::Filled(PieceKind::Knight, board.color_to_move)],
-        board.color_to_move,
+        board[Piece::Filled(PieceKind::Knight, board.color_to_move())],
+        board.color_to_move(),
     );
     sliding_moves(
         board,
         &mut mv_list,
-        board[Piece::Filled(PieceKind::Bishop, board.color_to_move)],
-        board.color_to_move,
+        board[Piece::Filled(PieceKind::Bishop, board.color_to_move())],
+        board.color_to_move(),
         PieceKind::Bishop,
     );
     sliding_moves(
         board,
         &mut mv_list,
-        board[Piece::Filled(PieceKind::Rook, board.color_to_move)],
-        board.color_to_move,
+        board[Piece::Filled(PieceKind::Rook, board.color_to_move())],
+        board.color_to_move(),
         PieceKind::Rook,
     );
     sliding_moves(
         board,
         &mut mv_list,
-        board[Piece::Filled(PieceKind::Queen, board.color_to_move)],
-        board.color_to_move,
+        board[Piece::Filled(PieceKind::Queen, board.color_to_move())],
+        board.color_to_move(),
         PieceKind::Queen,
     );
-    king_moves(board, &mut mv_list, board.color_to_move);
-    filter_moves_by_check(&board, &mut mv_list, board.color_to_move);
+    king_moves(board, &mut mv_list, board.color_to_move());
+    filter_moves_by_check(&board, &mut mv_list, board.color_to_move());
     mv_list
 }
 
@@ -97,13 +97,13 @@ pub fn for_square(board: &Board, sqr: Square) -> Vec<Move> {
             PieceKind::King => king_moves(board, &mut move_list, color),
         }
     }
-    filter_moves_by_check(&board, &mut move_list, board.color_to_move);
+    filter_moves_by_check(&board, &mut move_list, board.color_to_move());
     move_list
 }
 
 #[inline(always)]
 fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
-    let ep_pawn = if let Some(sq) = board.ep_target {
+    let ep_pawn = if let Some(sq) = board.ep_target() {
         if color == Color::White {
             Bitboard::from(sq) << Dir::South
         } else {
@@ -113,13 +113,19 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
         EMPTY
     };
 
-    let check_limits = board.check_move_limits();
+    let check_limits = match board.check() {
+        Check::None => ALL,
+        Check::Single(sqr) => {
+            Bitboard::between(board.king(board.color_to_move()), sqr) | sqr.into()
+        }
+        Check::Double => EMPTY,
+    };
 
     mvs.retain(|mv| {
         board[mv.origin].is_kind(PieceKind::King)
             || check_limits.contains(mv.dest)
             || board[mv.origin].is_kind(PieceKind::Pawn)
-                && Some(mv.dest) == board.ep_target
+                && Some(mv.dest) == board.ep_target()
                 && ep_pawn == check_limits
     });
 }
@@ -127,7 +133,7 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
 #[inline(always)]
 fn king_moves(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     let origin = board.king(color);
-    let free = (board[Piece::Empty] | board[!color]) & !board.attacks;
+    let free = (board[Piece::Empty] | board[!color]) & !board.attacks();
 
     for dir in ALL_DIRS {
         if let Some(dest) = origin.checked_add(dir) {
@@ -173,11 +179,11 @@ fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
     let ks_filter = Bitboard::new(0b00000110 << filter_offset);
     let ks_check = Bitboard::new(0b00001110 << filter_offset);
 
-    let castle_offset = if color == Color::White { 0 } else { 2 };
-
-    board.castle[castle_offset]
+    board
+        .castle(Piece::king(color))
+        .expect("always Some for king")
         && board[Piece::Empty] & ks_filter == ks_filter
-        && (board.attacks & ks_check).is_empty()
+        && (board.attacks() & ks_check).is_empty()
 }
 
 #[inline(always)]
@@ -185,11 +191,12 @@ fn able_to_castle_queenside(board: &Board, color: Color) -> bool {
     let filter_offset = if color == Color::White { 56 } else { 0 };
     let qs_filter = Bitboard::new(0b01110000 << filter_offset);
     let qs_check = Bitboard::new(0b00111000 << filter_offset);
-    let castle_offset = if color == Color::White { 0 } else { 2 };
 
-    board.castle[castle_offset + 1]
+    board
+        .castle(Piece::queen(color))
+        .expect("always Some for queen")
         && board[Piece::Empty] & qs_filter == qs_filter
-        && (board.attacks & qs_check).is_empty()
+        && (board.attacks() & qs_check).is_empty()
 }
 
 #[inline(always)]
@@ -214,7 +221,7 @@ fn pawn_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Colo
     let cap = board[!color]
         | if !ep_is_pinned(board) {
             board
-                .ep_target
+                .ep_target()
                 .expect("ep_is_pinned returns true if ep target doesn't exist")
                 .into()
         } else {
@@ -269,7 +276,7 @@ fn pawn_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Colo
 
 #[inline(always)]
 fn ep_is_pinned(board: &Board) -> bool {
-    match board.ep_target {
+    match board.ep_target() {
         None => true,
         Some(sq) => {
             let (color, dir) = if sq.rank() == 2 {
@@ -344,10 +351,9 @@ fn sliding_moves(
         _ => return,
     };
 
-    let pinned_pieces = initial & board.pins;
+    let pinned_pieces = initial & board.pins();
     let unpinned_pieces = initial ^ pinned_pieces;
 
-    
     //for d in dirs {
     //    let mut mv = unpinned_pieces << *d;
     //    let mut end = mv & board[Piece::Empty];
@@ -447,7 +453,7 @@ fn knight_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Co
         ),
     ];
 
-    for sqr in initial & !board.pins {
+    for sqr in initial & !board.pins() {
         for (offset, filter) in dirs {
             if let Some(dest) = ((Bitboard::from(sqr) << offset) & filter & cap).first_square() {
                 mvs.push(Move {

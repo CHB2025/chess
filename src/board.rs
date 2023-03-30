@@ -1,6 +1,6 @@
 use std::{default, fmt};
 
-use crate::{Bitboard, Check, Color, Move, MoveState, Piece, Ray, Square, ALL, EMPTY};
+use crate::{Bitboard, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square, ALL, EMPTY, move_gen};
 
 use self::action::Action;
 
@@ -10,7 +10,6 @@ mod fen;
 mod hash;
 mod index;
 mod make;
-pub mod move_gen;
 mod perft;
 
 #[derive(Clone)]
@@ -174,18 +173,7 @@ impl Board {
     pub fn empty() -> Self {
         let mut e = Self {
             bitboards: [
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
-                EMPTY,
+                EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
                 ALL,
             ],
             color_bitboards: [EMPTY; 2],
@@ -217,7 +205,7 @@ impl Board {
         move_gen::legal(self)
     }
 
-    fn king(&self, color: Color) -> Square {
+    pub fn king(&self, color: Color) -> Square {
         self[Piece::king(color)]
             .first_square()
             .expect("King is not on the board")
@@ -227,7 +215,7 @@ impl Board {
         !self[Piece::king(color)].is_empty()
     }
 
-    fn pin_on_square(&self, square: Square) -> Option<Ray> {
+    pub fn pin_on_square(&self, square: Square) -> Option<Ray> {
         let piece = self[square];
         match piece {
             Piece::Filled(_, color) => {
@@ -249,13 +237,32 @@ impl Board {
         response
     }
 
-    fn check_move_limits(&self) -> Bitboard {
-        match self.check {
-            Check::None => ALL,
-            Check::Single(sqr) => {
-                Bitboard::between(self.king(self.color_to_move), sqr) | sqr.into()
+    pub fn check(&self) -> Check {
+        self.check
+    }
+
+    pub fn ep_target(&self) -> Option<Square> {
+        self.ep_target
+    }
+
+    pub fn attacks(&self) -> Bitboard {
+        self.attacks
+    }
+
+    pub fn pins(&self) -> Bitboard {
+        self.pins
+    }
+
+    pub fn castle(&self, side: Piece) -> Option<bool> {
+        if let Piece::Filled(kind, color) = side {
+            let offset = if color == Color::White { 0 } else { 2 };
+            match kind {
+                PieceKind::King => Some(self.castle[offset]),
+                PieceKind::Queen => Some(self.castle[offset + 1]),
+                _ => None,
             }
-            Check::Double => EMPTY,
+        } else {
+            None
         }
     }
 }
