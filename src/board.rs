@@ -1,11 +1,14 @@
 use std::{default, fmt};
 
-use crate::{Bitboard, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square, ALL, EMPTY, move_gen};
+use crate::{
+    move_gen, Bitboard, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square, ALL, EMPTY,
+};
 
 use self::action::Action;
 
 mod action;
 mod attacks;
+pub mod builder;
 mod fen;
 mod hash;
 mod index;

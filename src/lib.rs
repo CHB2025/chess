@@ -1,5 +1,5 @@
 mod board;
-pub use board::Board;
+pub use board::{Board, builder::BoardBuilder};
 
 mod ray;
 pub use ray::Ray;
