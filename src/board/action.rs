@@ -1,10 +1,10 @@
 use super::*;
 
-pub struct Action<'a> {
+pub struct Modifier<'a> {
     pub(super) board: &'a mut Board,
 }
 
-impl<'a> Action<'a> {
+impl<'a> Modifier<'a> {
     /// Puts the given piece at the provided square. Returns the piece that was replaced
     #[inline(always)]
     pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
@@ -46,13 +46,18 @@ impl<'a> Action<'a> {
     }
 
     #[inline(always)]
+    pub fn toggle_color_to_move(&mut self) -> Color {
+        self.board.color_to_move = !self.board.color_to_move;
+        self.board.color_to_move
+    }
+
+    #[inline(always)]
     pub fn board(&self) -> &Board {
         self.board
     }
 
     #[inline(always)]
     pub(super) fn complete(&mut self) {
-        self.board.color_to_move = !self.board.color_to_move;
         self.board.update_position();
     }
 }

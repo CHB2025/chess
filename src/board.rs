@@ -4,7 +4,7 @@ use crate::{
     move_gen, Bitboard, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square, ALL, EMPTY,
 };
 
-use self::action::Action;
+use self::action::Modifier;
 
 mod action;
 mod attacks;
@@ -233,8 +233,8 @@ impl Board {
     }
 
     #[inline]
-    fn action<'a, T>(&'a mut self, arg: impl FnOnce(&mut Action<'a>) -> T) -> T {
-        let mut action = Action { board: self };
+    fn modify<'a, T>(&'a mut self, arg: impl FnOnce(&mut Modifier<'a>) -> T) -> T {
+        let mut action = Modifier { board: self };
         let response = arg(&mut action);
         action.complete();
         response

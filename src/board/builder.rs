@@ -1,6 +1,11 @@
-use super::Board;
-use crate::{BoardError, Color, Dir, ErrorKind, Piece, PieceKind, Square};
+use std::str::FromStr;
 
+use regex::Regex;
+
+use super::Board;
+use crate::{BoardError, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
+
+#[derive(Debug)]
 pub struct BoardBuilder {
     pieces: [Piece; 64],
     color_to_move: Color,
@@ -11,78 +16,23 @@ pub struct BoardBuilder {
 }
 
 impl Default for BoardBuilder {
-    /// Returns a BoardBuilder containing the default chess starting position
+    /// Returns a [BoardBuilder] containing the default chess starting position
+    #[rustfmt::skip]
     fn default() -> Self {
         Self {
             pieces: [
-                Piece::rook(Color::Black),
-                Piece::knight(Color::Black),
-                Piece::bishop(Color::Black),
-                Piece::king(Color::Black),
-                Piece::queen(Color::Black),
-                Piece::bishop(Color::Black),
-                Piece::knight(Color::Black),
-                Piece::rook(Color::Black),
+                Piece::rook(Color::Black), Piece::knight(Color::Black), Piece::bishop(Color::Black), Piece::king(Color::Black), Piece::queen(Color::Black), Piece::bishop(Color::Black), Piece::knight(Color::Black), Piece::rook(Color::Black),
                 // White Pawns
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
+                Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black),
                 // Blank rows
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
+                Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
+                Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
+                Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
+                Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 //Black Pawns
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
+                Piece::pawn(Color::White), Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),
                 // Other black pieces
-                Piece::rook(Color::White),
-                Piece::knight(Color::White),
-                Piece::bishop(Color::White),
-                Piece::king(Color::White),
-                Piece::queen(Color::White),
-                Piece::bishop(Color::White),
-                Piece::knight(Color::White),
-                Piece::rook(Color::White),
+                Piece::rook(Color::White), Piece::knight(Color::White), Piece::bishop(Color::White), Piece::king(Color::White), Piece::queen(Color::White), Piece::bishop(Color::White), Piece::knight(Color::White), Piece::rook(Color::White),
             ],
             castle: [true; 4],
             color_to_move: Color::White,
@@ -94,7 +44,7 @@ impl Default for BoardBuilder {
 }
 
 impl BoardBuilder {
-    /// Returns a new BoardBuilder.
+    /// Returns a new [BoardBuilder].
     /// Starts with an empty board with White to move, no castling rights, on
     /// move 1
     pub fn new() -> Self {
@@ -108,18 +58,141 @@ impl BoardBuilder {
         }
     }
 
-    /// Puts the given piece at the square. Removes the piece that was previously there.
+    /// Creates a new [BoardBuilder] from a string in Forsynth-Edwards Notation (FEN). Returns a
+    /// [BoardError] if the string is improperly formatted.
+    ///
+    /// # Examples
+    /// ```
+    /// # use chb_chess::BoardBuilder;
+    /// // The starting FEN is valid and properly formatted, so it returns Ok
+    /// let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    /// let builder = BoardBuilder::from_fen(starting_fen);
+    /// println!("{:?}", builder);
+    ///
+    /// assert!(builder.is_ok());
+    ///
+    /// // An invalid FEN will still return Ok if it is properly formatted
+    /// // This is useful when starting with a partially assembled FEN and applying changes to it
+    /// // which will make it valid
+    /// let invalid_fen = "rnbq1bnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    /// let builder = BoardBuilder::from_fen(invalid_fen);
+    ///
+    /// assert!(builder.is_ok());
+    ///
+    /// // An impropperly formatted fen will return an Err
+    /// let improper_fen = "rnbqkbnr/pppppppp/8/3i4/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    /// let builder = BoardBuilder::from_fen(improper_fen);
+    ///
+    /// assert!(builder.is_err());
+    ///
+    /// // The half and full move counts are optional
+    /// let fen_with_no_move_count = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
+    /// let builder = BoardBuilder::from_fen(fen_with_no_move_count);
+    ///
+    /// assert!(builder.is_ok());
+    ///
+    /// # Ok::<(), chb_chess::BoardError>(());
+    /// ```
+    pub fn from_fen(fen: &str) -> Result<Self, BoardError> {
+        let mut builder = Self::new();
+        let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
+        let mut sections = fen.split(' ');
+
+        let b = sections.next().ok_or_else(short_err)?;
+
+        let mut row_count = 0;
+        let mut pos_count = 0;
+        for (y, row) in b.split('/').enumerate() {
+            let mut offset: usize = 0;
+            for (x, symbol) in row.chars().rev().enumerate() {
+                if symbol.is_numeric() {
+                    let o = symbol.to_string().parse::<usize>()?;
+                    pos_count += o;
+                    offset += o - 1;
+                    continue;
+                }
+                let p: Piece = symbol.try_into()?;
+                let square: Square = ((y << 3) + x + offset).try_into()?;
+                builder.pieces[square] = p;
+                pos_count += 1;
+            }
+            row_count += 1;
+        }
+        if row_count != 8 || pos_count != 64 {
+            return Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "Invalid Position Input. Row or Position count did not match expected",
+            ));
+        }
+
+        builder.color_to_move = sections.next().ok_or_else(short_err)?.parse()?;
+
+        let castling = sections.next().ok_or_else(short_err)?;
+        let c_re =
+            Regex::new(r"^(?:K?Q?k?q?|-)$").expect("Invalid Regex used to check castling rights");
+        if !c_re.is_match(castling) {
+            return Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "Castling rights are invalid",
+            ));
+        }
+        for c in castling.chars() {
+            let p: Piece = c.try_into()?;
+            let mut i = match p {
+                Piece::Filled(PieceKind::King, _) => 0,
+                Piece::Filled(PieceKind::Queen, _) => 1,
+                _ => continue,
+            };
+            if p.is_color(Color::Black) {
+                i += 2;
+            }
+            builder.castle[i] = true;
+        }
+
+        // EP Target
+        if let Ok(p) = Square::from_str(sections.next().ok_or_else(short_err)?) {
+            builder.ep_target = Some(p);
+            // Check rank and if there is a pawn in capture position right above it based on color to move
+        }
+
+        // Move counts
+        builder.halfmove = match sections.next() {
+            Some(hm) => hm.parse()?,
+            None => 0,
+        };
+        builder.fullmove = match sections.next() {
+            Some(fm) => fm.parse()?,
+            None => 1,
+        };
+
+        Ok(builder)
+    }
+
+    /// Puts the given [Piece] at the [Square]. Removes the [Piece] that was previously there.
+    /// Takes self by value and returns it again so it can be chained with other operations and
+    /// reassigned.
+    ///
+    /// # Examples
+    /// ```
+    /// # use chb_chess::{BoardBuilder, Piece, BoardError};
+    /// let mut builder = BoardBuilder::default();
+    /// builder = builder
+    ///     .put("p".parse()?, "c5".parse()?)
+    ///     .put(Piece::Empty, "c7".parse()?);
+    ///
+    /// # Ok::<(), BoardError>(())
+    /// ```
     pub fn put(mut self, piece: Piece, square: Square) -> Self {
         self.pieces[square] = piece;
         self
     }
 
-    /// Sets the color which will move first
+    /// Sets the [Color] which will move first
     pub fn color_to_move(mut self, color: Color) -> Self {
         self.color_to_move = color;
         self
     }
-    /// Set the castling rights for a given side. If the Piece provided is not a King or a Queen
+    /// Set the castling rights for a given side. If the [Piece] provided is not a King or a Queen
     /// the value is ignored
     pub fn castle(mut self, side: Piece, can_castle: bool) -> Self {
         if let Piece::Filled(kind, color) = side {
@@ -143,14 +216,14 @@ impl BoardBuilder {
         self
     }
 
-    /// Set(or clear) the En Passant target square
+    /// Set(or clear) the En Passant target [Square]
     pub fn ep_target(mut self, target: Option<Square>) -> Self {
         self.ep_target = target;
         self
     }
 
     /// Validates everything necessary to ensure that the board can generate things like attacks,
-    /// pins, checks.
+    /// pins, checks. If `Ok`, the board is able to generate and make at least one move.
     ///
     /// Validates:
     /// - Both kings exist
@@ -176,7 +249,7 @@ impl BoardBuilder {
             }
             (w, b)
         });
-        if (1, 1) == king_counts {
+        if (1, 1) != king_counts {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "Board must contain one white and one black king",
@@ -227,8 +300,51 @@ impl BoardBuilder {
         Ok(())
     }
 
+    /// Builds a board using the current state of the BoardBuilder. If the current state is not
+    /// valid, it will return a BoardError with a message describing the issue.
+    ///
+    /// # Examples
+    /// ```
+    /// # use chb_chess::{BoardBuilder, Piece, Square};
+    ///
+    /// let mut builder = BoardBuilder::default();
+    ///
+    /// assert!(builder.build().is_ok());
+    ///
+    /// // Replacing the white king to invalidate the BoardBuilder
+    /// builder = builder.put(Piece::Empty, "e1".parse::<Square>()?);
+    ///
+    /// assert!(builder.build().is_err());
+    /// # Ok::<(), chb_chess::BoardError>(())
+    /// ```
     pub fn build(&self) -> Result<Board, BoardError> {
         self.partial_validate()?;
-        todo!()
+
+        let mut board = Board::empty();
+        // color to move is opposite of what it should be so we can check if
+        // the current opposing king is in check. Board is invalid if it is
+        board.color_to_move = !self.color_to_move;
+
+        board.modify(|m| {
+            for (sq, p) in self.pieces.iter().enumerate() {
+                m.put(*p, sq.try_into().expect("will be valid square"));
+            }
+        });
+        if board.check != Check::None {
+            return Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "First color to move may not be able to capture the opposing king",
+            ));
+        }
+        // Switching color to move and updating attacks, pins, and checks
+        board.modify(|m| (m.toggle_color_to_move()));
+
+        if board.legal_moves().len() == 0 {
+            return Err(BoardError::new(
+                ErrorKind::InvalidInput,
+                "First color to move must have available moves",
+            ));
+        }
+        Ok(board)
     }
 }

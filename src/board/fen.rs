@@ -74,14 +74,14 @@ impl Board {
     ///
     /// # Examples
     /// ```
-    /// # use chess_board::Board;
+    /// # use chb_chess::Board;
     ///
     /// let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     /// let board = Board::from_fen(starting_fen)?;
     ///
     /// //assert_eq!(board, Board::default());
     ///
-    /// # Ok::<(), chess_board::BoardError>(())
+    /// # Ok::<(), chb_chess::BoardError>(())
     /// ```
     pub fn from_fen(fen: impl Into<String>) -> Result<Self, BoardError> {
         let f: String = fen.into();

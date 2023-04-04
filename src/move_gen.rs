@@ -11,7 +11,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// # use chess_board::{move_gen, Board};
+/// # use chb_chess::{move_gen, Board};
 /// // Board in starting position
 /// let board = Board::default();
 ///
@@ -67,7 +67,7 @@ pub fn legal(board: &Board) -> Vec<Move> {
 ///
 /// # [Examples]
 /// ```
-/// # use chess_board::{move_gen, Board, BoardError, Move};
+/// # use chb_chess::{move_gen, Board, BoardError, Move};
 /// //Board in starting position
 /// let board = Board::default();
 ///

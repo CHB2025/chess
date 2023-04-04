@@ -42,11 +42,11 @@ impl Board {
         };
         self.update_hash(ms);
 
-        self.action(|t| {
+        self.modify(|b| {
             if ms.mv.promotion != Piece::Empty {
-                t.put(piece, ms.mv.dest);
+                b.put(piece, ms.mv.dest);
             }
-            t.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
+            b.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
 
             let is_ep = if let Some(e) = ms.ep_target {
                 e.index() == ms.mv.dest.index() && piece.is_kind(PieceKind::Pawn)
@@ -57,8 +57,8 @@ impl Board {
             if is_ep {
                 let bit_index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
                 let sqr = Square(bit_index);
-                t.put(ms.capture, sqr);
-                t.clear(ms.mv.dest);
+                b.put(ms.capture, sqr);
+                b.clear(ms.mv.dest);
             }
 
             let is_castle = piece.is_kind(PieceKind::King)
@@ -75,8 +75,9 @@ impl Board {
                 } else {
                     r_origin.index() as i32 + 3 * Dir::East.offset()
                 } as u8);
-                t.r#move(r_dest, r_origin);
+                b.r#move(r_dest, r_origin);
             }
+            b.toggle_color_to_move();
         });
 
         // Resetting metadata
@@ -90,20 +91,20 @@ impl Board {
 
     pub unsafe fn make_unchecked(&mut self, mv: Move) {
         let piece = self[mv.origin];
-        let capture = self.action(|t| -> Piece {
-            let is_ep = if let Some(e) = t.board().ep_target {
+        let capture = self.modify(|b| -> Piece {
+            let is_ep = if let Some(e) = b.board().ep_target {
                 e == mv.dest && piece.is_kind(PieceKind::Pawn)
             } else {
                 false
             };
 
-            let mut capture = t.r#move(mv.origin, mv.dest);
+            let mut capture = b.r#move(mv.origin, mv.dest);
             if is_ep {
                 let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
-                capture = t.clear(index)
+                capture = b.clear(index)
             }
             if mv.promotion != Piece::Empty {
-                t.put(mv.promotion, mv.dest);
+                b.put(mv.promotion, mv.dest);
             }
             let is_castle =
                 piece.is_kind(PieceKind::King) && mv.dest.index().abs_diff(mv.origin.index()) == 2;
@@ -119,8 +120,9 @@ impl Board {
                 } else {
                     r_origin as i32 + 3 * Dir::East.offset()
                 } as u8;
-                t.r#move(Square(r_origin), Square(r_dest));
+                b.r#move(Square(r_origin), Square(r_dest));
             }
+            b.toggle_color_to_move();
             capture
         });
 
@@ -210,7 +212,7 @@ mod tests {
         let mut board =
             Board::from_fen("rnbqkbnr/ppp2ppp/3p4/3Pp3/8/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 3")
                 .unwrap();
-        let mv = board.legal_moves()[0];
+        let _mv = board.legal_moves()[0];
         let m = Move::from_str("d5e6").unwrap();
         board.make(m).unwrap();
         assert_eq!(
@@ -230,7 +232,7 @@ mod tests {
             board.make(m).unwrap();
             assert!(board.is_valid());
         }
-        for mv in mvs.iter().rev() {
+        for _mv in mvs.iter().rev() {
             board.unmake();
             assert!(board.is_valid());
         }
