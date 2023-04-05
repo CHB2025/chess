@@ -169,32 +169,32 @@ impl BoardBuilder {
     }
 
     /// Puts the given [Piece] at the [Square]. Removes the [Piece] that was previously there.
-    /// Takes self by value and returns it again so it can be chained with other operations and
-    /// reassigned.
+    /// Takes self by mutable refrence and returns it again so it can be chained with other 
+    /// operations.
     ///
     /// # Examples
     /// ```
     /// # use chb_chess::{BoardBuilder, Piece, BoardError};
     /// let mut builder = BoardBuilder::default();
-    /// builder = builder
+    /// builder
     ///     .put("p".parse()?, "c5".parse()?)
     ///     .put(Piece::Empty, "c7".parse()?);
     ///
     /// # Ok::<(), BoardError>(())
     /// ```
-    pub fn put(mut self, piece: Piece, square: Square) -> Self {
+    pub fn put(&mut self, piece: Piece, square: Square) -> &mut Self {
         self.pieces[square] = piece;
         self
     }
 
     /// Sets the [Color] which will move first
-    pub fn color_to_move(mut self, color: Color) -> Self {
+    pub fn color_to_move(&mut self, color: Color) -> &mut Self {
         self.color_to_move = color;
         self
     }
     /// Set the castling rights for a given side. If the [Piece] provided is not a King or a Queen
     /// the value is ignored
-    pub fn castle(mut self, side: Piece, can_castle: bool) -> Self {
+    pub fn castle(&mut self, side: Piece, can_castle: bool) -> &mut Self {
         if let Piece::Filled(kind, color) = side {
             let offset = if color == Color::White { 0 } else { 2 };
             match kind {
@@ -206,18 +206,18 @@ impl BoardBuilder {
         self
     }
     /// Set the fullmove counter
-    pub fn fullmove(mut self, fullmove: u32) -> Self {
+    pub fn fullmove(&mut self, fullmove: u32) -> &mut Self {
         self.fullmove = fullmove;
         self
     }
     /// Set the halfmove counter
-    pub fn halfmove(mut self, halfmove: u32) -> Self {
+    pub fn halfmove(&mut self, halfmove: u32) -> &mut Self {
         self.halfmove = halfmove;
         self
     }
 
     /// Set(or clear) the En Passant target [Square]
-    pub fn ep_target(mut self, target: Option<Square>) -> Self {
+    pub fn ep_target(&mut self, target: Option<Square>) -> &mut Self {
         self.ep_target = target;
         self
     }
@@ -272,7 +272,7 @@ impl BoardBuilder {
             .into_iter()
             .position(|p| p == Piece::king(Color::Black))
             .expect("King is guaranteed to be on the board");
-        if (self.castle[0] | self.castle[1]) && b_king != 3 {
+        if (self.castle[2] | self.castle[3]) && b_king != 3 {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "Black king may not castle if it is not at e8",
@@ -324,6 +324,10 @@ impl BoardBuilder {
         // color to move is opposite of what it should be so we can check if
         // the current opposing king is in check. Board is invalid if it is
         board.color_to_move = !self.color_to_move;
+        board.castle = self.castle;
+        board.halfmove = self.halfmove;
+        board.fullmove = self.fullmove;
+        board.ep_target = self.ep_target;
 
         board.modify(|m| {
             for (sq, p) in self.pieces.iter().enumerate() {
@@ -346,5 +350,74 @@ impl BoardBuilder {
             ));
         }
         Ok(board)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::BoardBuilder;
+
+    fn valid_fens() -> [String; 6] {
+        [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string(),
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1".to_string(),
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1".to_string(),
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1".to_string(),
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8".to_string(),
+            "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10".to_string(),
+        ]
+    }
+
+    #[test]
+    fn test_is_valid() {
+        let fen_strings = [
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                true,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PP2PPPPP/RNBQKBNR w KQkq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQfdskq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR p KQkq - 0 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - -324 1",
+                false,
+            ),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 -219",
+                false,
+            ),
+        ];
+        for (fen, is_valid) in fen_strings {
+            let builder = BoardBuilder::from_fen(&fen);
+            assert_eq!(
+                builder.is_ok() && builder.unwrap().build().is_ok(),
+                is_valid,
+                "Testing {}",
+                fen
+            );
+        }
+    }
+
+    #[test]
+    fn test_create_board() {
+        let fens = valid_fens();
+
+        for f in fens {
+            let game = BoardBuilder::from_fen(&f)
+                .expect("Failed to create builder")
+                .build()
+                .expect("Failed to create game");
+            println!("{}", game);
+            assert_eq!(f, game.to_fen());
+        }
     }
 }

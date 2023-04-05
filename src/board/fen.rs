@@ -1,8 +1,7 @@
 use core::fmt;
 use std::{fmt::Display, str::FromStr};
 
-use crate::{Bitboard, Board, BoardError, Color, ErrorKind, Piece, PieceKind, Square};
-use regex::Regex;
+use crate::{Board, BoardBuilder, BoardError, Piece};
 
 impl FromStr for Board {
     type Err = BoardError;
@@ -19,9 +18,10 @@ impl Display for Board {
 }
 
 impl Board {
+    /// Creates a representation of the board in Forsynth-Edwards Notation(FEN)
     pub fn to_fen(&self) -> String {
         let mut output = String::new();
-        
+
         for rank in 0..8 {
             let mut empty_squares = 0;
             for p in self.pieces[(rank << 3)..((rank + 1) << 3)].iter().rev() {
@@ -69,7 +69,7 @@ impl Board {
         output
     }
 
-    /// Use this function to create a board from a string in Forsynth-Edwards 
+    /// Use this function to create a board from a string in Forsynth-Edwards
     /// Notation (FEN). Returns a [BoardError] if the string is invalid.
     ///
     /// # Examples
@@ -85,94 +85,7 @@ impl Board {
     /// ```
     pub fn from_fen(fen: impl Into<String>) -> Result<Self, BoardError> {
         let f: String = fen.into();
-
-        let short_err = || BoardError::new(ErrorKind::InvalidInput, "Missing sections of FEN");
-
-        let mut board = Board::empty();
-
-        let mut sections = f.split(' ');
-
-        let b = sections.next().ok_or_else(short_err)?;
-
-        let mut row_count = 0;
-        let mut pos_count = 0;
-        for (y, row) in b.split('/').enumerate() {
-            let mut offset: usize = 0;
-            for (x, symbol) in row.chars().rev().enumerate() {
-                if symbol.is_numeric() {
-                    let o = symbol.to_string().parse::<usize>()?;
-                    pos_count += o;
-                    offset += o - 1;
-                    continue;
-                }
-                let p: Piece = symbol.try_into()?;
-                let square: Square = ((y << 3) + x + offset).try_into()?;
-                let bb = Bitboard::from(square);
-                board.pieces[square] = p;
-                board.bitboards[Piece::Empty] ^= bb;
-                board.bitboards[p] |= bb;
-                if let Some(color) = p.color() {
-                    board.color_bitboards[color] |= bb;
-                }
-                pos_count += 1;
-            }
-            row_count += 1;
-        }
-        if row_count != 8 || pos_count != 64 {
-            println!("{} rows, {} positions", row_count, pos_count);
-            return Err(BoardError::new(
-                ErrorKind::InvalidInput,
-                "Invalid Position Input. Row or Position count did not match expected",
-            ));
-        }
-
-        // Color to move
-        board.color_to_move = sections.next().ok_or_else(short_err)?.parse()?;
-
-        board.update_position();
-
-        // Castling rights
-        let castling = sections.next().ok_or_else(short_err)?;
-        let c_re =
-            Regex::new(r"^(?:K?Q?k?q?|-)$").expect("Invalid Regex used to check castling rights");
-        if !c_re.is_match(castling) {
-            return Err(BoardError::new(
-                ErrorKind::InvalidInput,
-                "Castling rights are invalid",
-            ));
-        }
-        for c in castling.chars() {
-            let p: Piece = c.try_into()?;
-            let mut i = match p {
-                Piece::Filled(PieceKind::King, _) => 0,
-                Piece::Filled(PieceKind::Queen, _) => 1,
-                _ => continue,
-            };
-            if p.is_color(Color::Black) {
-                i += 2;
-            }
-            board.castle[i] = true;
-        }
-
-        // EP Target
-        if let Ok(p) = Square::from_str(sections.next().ok_or_else(short_err)?) {
-            board.ep_target = Some(p);
-            // Check rank and if there is a pawn in capture position right above it based on color to move
-        }
-
-        // Move counts
-        board.halfmove = match sections.next() {
-            Some(hm) => hm.parse()?,
-            None => 0,
-        };
-        board.fullmove = match sections.next() {
-            Some(fm) => fm.parse()?,
-            None => 1,
-        };
-
-        board.initialize_hash();
-
-        Ok(board)
+        BoardBuilder::from_fen(&f)?.build()
     }
 }
 

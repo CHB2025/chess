@@ -1,7 +1,8 @@
 use std::{default, fmt};
 
 use crate::{
-    move_gen, Bitboard, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square, ALL, EMPTY,
+    move_gen, Bitboard, BoardBuilder, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square,
+    ALL, EMPTY,
 };
 
 use self::action::Modifier;
@@ -63,107 +64,9 @@ impl IntoIterator for &Board {
 
 impl default::Default for Board {
     fn default() -> Self {
-        let mut response = Self {
-            bitboards: [
-                Bitboard::new(0x08 << 56),
-                Bitboard::new(0x08),
-                Bitboard::new(0x10 << 56),
-                Bitboard::new(0x10),
-                Bitboard::new(0x24 << 56),
-                Bitboard::new(0x24),
-                Bitboard::new(0x42 << 56),
-                Bitboard::new(0x42),
-                Bitboard::new(0x81 << 56),
-                Bitboard::new(0x81),
-                Bitboard::new(0xff << 48),
-                Bitboard::new(0xff << 8),
-                Bitboard::new(0xffffffff << 16),
-            ],
-            color_bitboards: [Bitboard::new(0xffff << 48), Bitboard::new(0xffff)],
-            attacks: Bitboard::new(0xffff7e),
-            pins: EMPTY,
-            check: Check::None,
-            pieces: [
-                Piece::rook(Color::Black),
-                Piece::knight(Color::Black),
-                Piece::bishop(Color::Black),
-                Piece::king(Color::Black),
-                Piece::queen(Color::Black),
-                Piece::bishop(Color::Black),
-                Piece::knight(Color::Black),
-                Piece::rook(Color::Black),
-                // White Pawns
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                Piece::pawn(Color::Black),
-                // Blank rows
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                Piece::Empty,
-                //Black Pawns
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                Piece::pawn(Color::White),
-                // Other black pieces
-                Piece::rook(Color::White),
-                Piece::knight(Color::White),
-                Piece::bishop(Color::White),
-                Piece::king(Color::White),
-                Piece::queen(Color::White),
-                Piece::bishop(Color::White),
-                Piece::knight(Color::White),
-                Piece::rook(Color::White),
-            ],
-            castle: [true; 4],
-            color_to_move: Color::White,
-            ep_target: None,
-            halfmove: 0,
-            fullmove: 1,
-            move_history: Vec::new(),
-            hash: 0,
-            hash_keys: [0; 781],
-        };
-        response.initialize_hash();
-        response
+        BoardBuilder::default()
+            .build()
+            .expect("Default board is valid")
     }
 }
 
@@ -173,7 +76,7 @@ impl Board {
     }
 
     /// Creates and returns an empy board. Useful for setting up new positions
-    pub fn empty() -> Self {
+    fn empty() -> Self {
         let mut e = Self {
             bitboards: [
                 EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
