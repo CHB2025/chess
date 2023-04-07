@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 mod common;
 
+#[cfg(test)]
 fn collision_detection(
     board: &mut Board,
     depth: usize,

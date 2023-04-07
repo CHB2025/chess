@@ -2,8 +2,6 @@ use std::{fmt, ops, str};
 
 use crate::error::{BoardError, ErrorKind};
 
-pub mod init;
-
 pub const PROMO_PIECES: [PieceKind; 4] = [PieceKind::Queen, PieceKind::Bishop, PieceKind::Knight, PieceKind::Rook];
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
@@ -186,5 +184,30 @@ impl Piece {
             Self::Filled(k, _) => *k == kind,
             Self::Empty => false,
         }
+    }
+
+    // Easy Piece creation
+    pub fn king(color: Color) -> Piece {
+        Piece::Filled(PieceKind::King, color)
+    }
+
+    pub fn queen(color: Color) -> Self {
+        Piece::Filled(PieceKind::Queen, color)
+    }
+
+    pub fn bishop(color: Color) -> Self {
+        Piece::Filled(PieceKind::Bishop, color)
+    }
+
+    pub fn rook(color: Color) -> Self {
+        Piece::Filled(PieceKind::Rook, color)
+    }
+
+    pub fn knight(color: Color) -> Self {
+        Piece::Filled(PieceKind::Knight, color)
+    }
+
+    pub fn pawn(color: Color) -> Self {
+        Piece::Filled(PieceKind::Pawn, color)
     }
 }

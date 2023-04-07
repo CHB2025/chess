@@ -10,14 +10,14 @@ use crate::{
     Ray, Square, ALL, EMPTY,
 };
 
-use self::action::Modifier;
+use self::modify::Modifier;
 
-mod action;
 mod attacks;
 pub mod builder;
 mod hash;
 mod index;
 mod make;
+mod modify;
 mod perft;
 
 #[derive(Clone)]

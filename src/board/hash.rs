@@ -56,7 +56,7 @@ pub(super) fn hash_index(p: Piece, index: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, str::FromStr};
+    use std::str::FromStr;
 
     use crate::{moves::Move, Board};
 
@@ -84,27 +84,4 @@ mod tests {
         assert_eq!(initial, board.hash);
     }
 
-    fn collision_detection(
-        board: &mut Board,
-        depth: usize,
-        map: &mut HashMap<u64, HashMap<usize, usize>>,
-    ) -> usize {
-        let nodes = if depth == 1 {
-            board.legal_moves().len()
-        } else {
-            let mvs = board.legal_moves();
-            mvs.into_iter().map(|m| {
-                unsafe { board.make_unchecked(m) };
-                let nodes = collision_detection(board, depth - 1, map);
-                board.unmake();
-                nodes
-            }).sum()
-        };
-
-        let expected = map.entry(board.hash()).or_default().entry(depth).or_insert(nodes);
-
-        assert_eq!(&nodes, expected, "Mismatch at depth {}", depth);
-
-        nodes
-    }
 }
