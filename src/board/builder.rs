@@ -3,13 +3,13 @@ use std::str::FromStr;
 use regex::Regex;
 
 use super::Board;
-use crate::{BoardError, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
+use crate::{BoardError, Castle, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
 
 #[derive(Debug)]
 pub struct BoardBuilder {
     pieces: [Piece; 64],
     color_to_move: Color,
-    castle: [bool; 4],
+    castle: [Castle; 2],
     ep_target: Option<Square>,
     halfmove: u32,
     fullmove: u32,
@@ -21,20 +21,21 @@ impl Default for BoardBuilder {
     fn default() -> Self {
         Self {
             pieces: [
+                // Black pieces
                 Piece::rook(Color::Black), Piece::knight(Color::Black), Piece::bishop(Color::Black), Piece::king(Color::Black), Piece::queen(Color::Black), Piece::bishop(Color::Black), Piece::knight(Color::Black), Piece::rook(Color::Black),
-                // White Pawns
+                // Black Pawns
                 Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black), Piece::pawn(Color::Black),
                 // Blank rows
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
                 Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty, Piece::Empty,
-                //Black Pawns
+                // White Pawns
                 Piece::pawn(Color::White), Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),Piece::pawn(Color::White),
-                // Other black pieces
+                // Other white pieces
                 Piece::rook(Color::White), Piece::knight(Color::White), Piece::bishop(Color::White), Piece::king(Color::White), Piece::queen(Color::White), Piece::bishop(Color::White), Piece::knight(Color::White), Piece::rook(Color::White),
             ],
-            castle: [true; 4],
+            castle: [Castle::Both; 2],
             color_to_move: Color::White,
             ep_target: None,
             halfmove: 0,
@@ -51,7 +52,7 @@ impl BoardBuilder {
         BoardBuilder {
             pieces: [Piece::Empty; 64],
             color_to_move: Color::White,
-            castle: [false; 4],
+            castle: [Castle::None; 2],
             ep_target: None,
             halfmove: 0,
             fullmove: 1,
@@ -138,15 +139,15 @@ impl BoardBuilder {
         }
         for c in castling.chars() {
             let p: Piece = c.try_into()?;
-            let mut i = match p {
-                Piece::Filled(PieceKind::King, _) => 0,
-                Piece::Filled(PieceKind::Queen, _) => 1,
-                _ => continue,
-            };
-            if p.is_color(Color::Black) {
-                i += 2;
+            match p {
+                Piece::Filled(PieceKind::King, color) => {
+                    builder.castle[color] = builder.castle[color].with_king_side(true)
+                }
+                Piece::Filled(PieceKind::Queen, color) => {
+                    builder.castle[color] = builder.castle[color].with_queen_side(true)
+                }
+                _ => (),
             }
-            builder.castle[i] = true;
         }
 
         // EP Target
@@ -169,7 +170,7 @@ impl BoardBuilder {
     }
 
     /// Puts the given [Piece] at the [Square]. Removes the [Piece] that was previously there.
-    /// Takes self by mutable refrence and returns it again so it can be chained with other 
+    /// Takes self by mutable refrence and returns it again so it can be chained with other
     /// operations.
     ///
     /// # Examples
@@ -194,15 +195,8 @@ impl BoardBuilder {
     }
     /// Set the castling rights for a given side. If the [Piece] provided is not a King or a Queen
     /// the value is ignored
-    pub fn castle(&mut self, side: Piece, can_castle: bool) -> &mut Self {
-        if let Piece::Filled(kind, color) = side {
-            let offset = if color == Color::White { 0 } else { 2 };
-            match kind {
-                PieceKind::King => self.castle[offset] = can_castle,
-                PieceKind::Queen => self.castle[offset + 1] = can_castle,
-                _ => (),
-            }
-        }
+    pub fn castle(&mut self, side: Color, castle: Castle) -> &mut Self {
+        self.castle[side] = castle;
         self
     }
     /// Set the fullmove counter
@@ -261,7 +255,7 @@ impl BoardBuilder {
             .into_iter()
             .position(|p| p == Piece::king(Color::White))
             .expect("King is guaranteed to be on the board");
-        if (self.castle[0] | self.castle[1]) && w_king != 59 {
+        if self.castle[Color::White] != Castle::None && w_king != 59 {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "White king may not castle if it is not at e1",
@@ -272,7 +266,7 @@ impl BoardBuilder {
             .into_iter()
             .position(|p| p == Piece::king(Color::Black))
             .expect("King is guaranteed to be on the board");
-        if (self.castle[2] | self.castle[3]) && b_king != 3 {
+        if self.castle[Color::Black] != Castle::None && b_king != 3 {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "Black king may not castle if it is not at e8",
@@ -312,7 +306,7 @@ impl BoardBuilder {
     /// assert!(builder.build().is_ok());
     ///
     /// // Replacing the white king to invalidate the BoardBuilder
-    /// builder = builder.put(Piece::Empty, "e1".parse::<Square>()?);
+    /// builder.put(Piece::Empty, "e1".parse::<Square>()?);
     ///
     /// assert!(builder.build().is_err());
     /// # Ok::<(), chb_chess::BoardError>(())
@@ -323,13 +317,16 @@ impl BoardBuilder {
         let mut board = Board::empty();
         // color to move is opposite of what it should be so we can check if
         // the current opposing king is in check. Board is invalid if it is
-        board.color_to_move = !self.color_to_move;
-        board.castle = self.castle;
         board.halfmove = self.halfmove;
         board.fullmove = self.fullmove;
-        board.ep_target = self.ep_target;
 
         board.modify(|m| {
+            m.set_ep_target(self.ep_target);
+            m.set_castle(Color::White, self.castle[Color::White]);
+            m.set_castle(Color::Black, self.castle[Color::Black]);
+            if m.board.color_to_move() == self.color_to_move {
+                m.toggle_color_to_move();
+            }
             for (sq, p) in self.pieces.iter().enumerate() {
                 m.put(*p, sq.try_into().expect("will be valid square"));
             }

@@ -1,10 +1,8 @@
 use rand::{self, rngs::StdRng, RngCore, SeedableRng};
-use std::hash::Hash;
 
-use crate::Square;
-use crate::moves::MoveState;
 use crate::piece::Color;
 use crate::{piece::Piece, Board};
+use crate::{Castle, Square};
 
 pub(crate) const MAX_PIECE_INDEX: usize = 767;
 const SEED: [u8; 32] = [
@@ -12,80 +10,53 @@ const SEED: [u8; 32] = [
     129, 128, 230, 251, 207, 200, 134, 166, 125, 236, 147,
 ];
 
-impl Hash for Board {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.hash.hash(state);
+// May make the zobrist key generation public so other board representations can share same keys?
+#[inline]
+pub(super) fn zobrist_keys() -> [u64; 781] {
+    seeded_zobrist_keys(SEED)
+}
+#[inline]
+pub(super) fn seeded_zobrist_keys(seed: [u8; 32]) -> [u64; 781] {
+    let mut keys = [0u64; 781];
+    let mut rng = StdRng::from_seed(seed);
+    for i in 0..keys.len() {
+        keys[i] = rng.next_u64();
+    }
+    keys
+}
+
+pub(super) fn toggle_color_hash(board: &mut Board) {
+    board.hash ^= board.hash_keys[MAX_PIECE_INDEX + 1];
+}
+
+pub(super) fn update_castle_hash(board: &mut Board, color: Color, old: Castle, new: Castle) {
+    let index = match color {
+        Color::White => MAX_PIECE_INDEX + 2,
+        Color::Black => MAX_PIECE_INDEX + 4,
+    };
+    if old.get_king_side() != new.get_king_side() {
+        board.hash ^= board.hash_keys[index];
+    }
+    if old.get_queen_side() != new.get_queen_side() {
+        board.hash ^= board.hash_keys[index + 1];
     }
 }
 
-impl Board {
-    pub(crate) fn initialize_hash(&mut self) {
-        let mut rng = StdRng::from_seed(SEED);
-        for i in 0..self.hash_keys.len() {
-            self.hash_keys[i] = rng.next_u64();
-        }
-
-        // Creating hash
-        let mut h = 0u64;
-        for (i, p) in self.into_iter().enumerate() {
-            if p != Piece::Empty {
-                h ^= self.hash_keys[hash_index(p, i)]
-            }
-        }
-        // p on square 63 would be 767
-        let mut next_index = MAX_PIECE_INDEX + 1;
-        if self.color_to_move() == Color::Black {
-            h ^= self.hash_keys[next_index];
-        }
-        next_index += 1;
-        for c in self.castle {
-            if c {
-                h ^= self.hash_keys[next_index];
-            }
-            next_index += 1;
-        }
-        if let Some(pos) = self.ep_target {
-            h ^= self.hash_keys[next_index + pos.file() as usize];
-        }
-        self.hash = h;
-    }
-
-    pub fn get_hash(&self) -> u64 {
-        self.hash
-    }
-
-    pub(super) fn update_hash(&mut self, ms: MoveState) {
-       let mut next_index = MAX_PIECE_INDEX + 1;
-        // Changing sides
-        self.hash ^= self.hash_keys[next_index];
-        next_index += 1;
-
-        for i in 0..4 {
-            if self.castle[i] != ms.castle[i] {
-                self.hash ^= self.hash_keys[next_index];
-            }
-            next_index += 1;
-        }
-        if let Some(pos) = ms.ep_target {
-            self.hash ^= self.hash_keys[next_index + pos.file() as usize];
-        }
-        if let Some(pos) = self.ep_target {
-            self.hash ^= self.hash_keys[next_index + pos.file() as usize]
-        }
-    }
-
-    pub(super) fn increment_hash(&mut self, piece: Piece, square: Square) {
-        self.hash ^= self.hash_keys[hash_index(piece, square.index().into())];
-    }
+pub(super) fn toggle_ep_hash(board: &mut Board, square: Square) {
+    board.hash ^= board.hash_keys[MAX_PIECE_INDEX + 6 + square.file() as usize];
 }
 
-pub(crate) fn hash_index(p: Piece, index: usize) -> usize {
+pub(super) fn increment_hash(board: &mut Board, piece: Piece, square: Square) {
+    board.hash ^= board.hash_keys[hash_index(piece, square.index().into())];
+}
+
+pub(super) fn hash_index(p: Piece, index: usize) -> usize {
     (p.index() << 6) + index
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{collections::HashMap, str::FromStr};
 
     use crate::{moves::Move, Board};
 
@@ -111,5 +82,29 @@ mod tests {
             board.make(m.parse().unwrap()).unwrap();
         }
         assert_eq!(initial, board.hash);
+    }
+
+    fn collision_detection(
+        board: &mut Board,
+        depth: usize,
+        map: &mut HashMap<u64, HashMap<usize, usize>>,
+    ) -> usize {
+        let nodes = if depth == 1 {
+            board.legal_moves().len()
+        } else {
+            let mvs = board.legal_moves();
+            mvs.into_iter().map(|m| {
+                unsafe { board.make_unchecked(m) };
+                let nodes = collision_detection(board, depth - 1, map);
+                board.unmake();
+                nodes
+            }).sum()
+        };
+
+        let expected = map.entry(board.hash()).or_default().entry(depth).or_insert(nodes);
+
+        assert_eq!(&nodes, expected, "Mismatch at depth {}", depth);
+
+        nodes
     }
 }

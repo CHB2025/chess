@@ -113,11 +113,6 @@ impl Board {
         let mut p = EMPTY;
         let mut c = EMPTY;
         let color = self.color_to_move;
-        if !self.king_exists(color) {
-            self.pins = p;
-            self.check = Check::None;
-            return;
-        }
 
         let initial: Bitboard = self.king(color).into();
         let def = self[color] ^ initial;

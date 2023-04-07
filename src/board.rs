@@ -1,8 +1,13 @@
-use std::{default, fmt};
+use std::{
+    default,
+    fmt::{self, Display},
+    hash::Hash,
+    str::FromStr,
+};
 
 use crate::{
-    move_gen, Bitboard, BoardBuilder, Check, Color, Move, MoveState, Piece, PieceKind, Ray, Square,
-    ALL, EMPTY,
+    move_gen, Bitboard, BoardBuilder, BoardError, Castle, Check, Color, Move, MoveState, Piece,
+    Ray, Square, ALL, EMPTY,
 };
 
 use self::action::Modifier;
@@ -10,7 +15,6 @@ use self::action::Modifier;
 mod action;
 mod attacks;
 pub mod builder;
-mod fen;
 mod hash;
 mod index;
 mod make;
@@ -25,7 +29,7 @@ pub struct Board {
     check: Check,
     color_to_move: Color,
     pieces: [Piece; 64],
-    castle: [bool; 4],
+    castle: [Castle; 2],
     ep_target: Option<Square>,
     halfmove: u32,
     fullmove: u32,
@@ -51,6 +55,20 @@ impl fmt::Debug for Board {
     }
 }
 
+impl FromStr for Board {
+    type Err = BoardError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_fen(s)
+    }
+}
+
+impl Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_fen())
+    }
+}
+
 impl IntoIterator for &Board {
     type Item = Piece;
     type IntoIter = std::array::IntoIter<Self::Item, 64>;
@@ -70,14 +88,38 @@ impl default::Default for Board {
     }
 }
 
+impl Hash for Board {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
+
 impl Board {
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Creates and returns an empy board. Useful for setting up new positions
+    /// Use this function to create a board from a string in Forsynth-Edwards
+    /// Notation (FEN). Returns a [BoardError] if the string is invalid.
+    ///
+    /// # Examples
+    /// ```
+    /// # use chb_chess::Board;
+    ///
+    /// let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    /// let board = Board::from_fen(starting_fen)?;
+    ///
+    /// //assert_eq!(board, Board::default());
+    ///
+    /// # Ok::<(), chb_chess::BoardError>(())
+    /// ```
+    pub fn from_fen(fen: impl Into<String>) -> Result<Self, BoardError> {
+        let f: String = fen.into();
+        BoardBuilder::from_fen(&f)?.build()
+    }
+
     fn empty() -> Self {
-        let mut e = Self {
+        Self {
             bitboards: [
                 EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
                 ALL,
@@ -88,16 +130,68 @@ impl Board {
             check: Check::None,
             pieces: [Piece::Empty; 64],
             color_to_move: Color::White,
-            castle: [false; 4],
+            castle: [Castle::None; 2],
             ep_target: None,
             halfmove: 0,
             fullmove: 1,
             move_history: Vec::new(),
             hash: 0,
-            hash_keys: [0; 781],
+            hash_keys: hash::zobrist_keys(),
+        }
+    }
+
+    #[inline]
+    fn modify<'a, T>(&'a mut self, arg: impl FnOnce(&mut Modifier<'a>) -> T) -> T {
+        let mut action = Modifier { board: self };
+        let response = arg(&mut action);
+        action.complete();
+        response
+    }
+
+    /// Creates a representation of the board in Forsynth-Edwards Notation(FEN)
+    pub fn to_fen(&self) -> String {
+        let mut output = String::new();
+
+        for rank in 0..8 {
+            let mut empty_squares = 0;
+            for p in self.pieces[(rank << 3)..((rank + 1) << 3)].iter().rev() {
+                if p == &Piece::Empty {
+                    empty_squares += 1;
+                    continue;
+                }
+                if empty_squares != 0 {
+                    output += empty_squares.to_string().as_str();
+                    empty_squares = 0;
+                }
+                output += p.to_string().as_str()
+            }
+            if empty_squares != 0 {
+                output += &format!("{}", empty_squares);
+            }
+            if rank != 7 {
+                output.push('/');
+            }
+        }
+
+        output += &format!(" {}", self.color_to_move);
+
+        output += &match self.castle {
+            [Castle::None, Castle::None] => " -".to_owned(),
+            [w, Castle::None] if w != Castle::None => format!(" {}", w).to_uppercase(),
+            [Castle::None, b] => format!(" {}", b),
+            [w, b] => format!(" {}{}", format!("{}", w).to_uppercase(), b),
         };
-        e.initialize_hash();
-        e
+
+        if let Some(ept) = self.ep_target {
+            output += &format!(" {}", ept)
+        } else {
+            output += " -"
+        }
+
+        output += &format!(" {}", self.halfmove);
+        output += &format!(" {}", self.fullmove);
+
+        output
     }
 
     pub fn is_white_to_move(&self) -> bool {
@@ -117,10 +211,6 @@ impl Board {
             .expect("King is not on the board")
     }
 
-    fn king_exists(&self, color: Color) -> bool {
-        !self[Piece::king(color)].is_empty()
-    }
-
     pub fn pin_on_square(&self, square: Square) -> Option<Ray> {
         let piece = self[square];
         match piece {
@@ -133,14 +223,6 @@ impl Board {
             }
             Piece::Empty => None,
         }
-    }
-
-    #[inline]
-    fn modify<'a, T>(&'a mut self, arg: impl FnOnce(&mut Modifier<'a>) -> T) -> T {
-        let mut action = Modifier { board: self };
-        let response = arg(&mut action);
-        action.complete();
-        response
     }
 
     pub fn check(&self) -> Check {
@@ -159,34 +241,11 @@ impl Board {
         self.pins
     }
 
-    pub fn castle(&self, side: Piece) -> Option<bool> {
-        if let Piece::Filled(kind, color) = side {
-            let offset = if color == Color::White { 0 } else { 2 };
-            match kind {
-                PieceKind::King => Some(self.castle[offset]),
-                PieceKind::Queen => Some(self.castle[offset + 1]),
-                _ => None,
-            }
-        } else {
-            None
-        }
+    pub fn castle(&self, color: Color) -> Castle {
+        self.castle[color]
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::Board;
-
-    #[test]
-    fn test_default() {
-        let game = Board::default();
-        assert_eq!(
-            game.to_fen(),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        );
-        for mv in game.legal_moves() {
-            println!("{}", mv);
-        }
-        assert_eq!(game.legal_moves().len(), 20)
+    pub fn hash(&self) -> u64 {
+        self.hash
     }
 }

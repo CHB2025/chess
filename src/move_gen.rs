@@ -179,9 +179,7 @@ fn able_to_castle_kingside(board: &Board, color: Color) -> bool {
     let ks_filter = Bitboard::new(0b00000110 << filter_offset);
     let ks_check = Bitboard::new(0b00001110 << filter_offset);
 
-    board
-        .castle(Piece::king(color))
-        .expect("always Some for king")
+    board.castle(color).get_king_side()
         && board[Piece::Empty] & ks_filter == ks_filter
         && (board.attacks() & ks_check).is_empty()
 }
@@ -192,9 +190,7 @@ fn able_to_castle_queenside(board: &Board, color: Color) -> bool {
     let qs_filter = Bitboard::new(0b01110000 << filter_offset);
     let qs_check = Bitboard::new(0b00111000 << filter_offset);
 
-    board
-        .castle(Piece::queen(color))
-        .expect("always Some for queen")
+    board.castle(color).get_queen_side()
         && board[Piece::Empty] & qs_filter == qs_filter
         && (board.attacks() & qs_check).is_empty()
 }

@@ -26,4 +26,7 @@ pub use bitboard::{Bitboard, ALL, EMPTY, NOT_A_FILE, NOT_H_FILE};
 mod check;
 pub use check::Check;
 
+mod castle;
+pub use castle::{Castle};
+
 pub mod move_gen;

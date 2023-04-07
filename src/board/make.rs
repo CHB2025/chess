@@ -5,7 +5,7 @@ use crate::{
     moves::{Move, MoveState},
     piece::{Color, Piece, PieceKind},
     square::Square,
-    Board,
+    Board, Castle,
 };
 
 impl Board {
@@ -40,7 +40,7 @@ impl Board {
             Piece::Empty => self[ms.mv.dest],
             Piece::Filled(_, color) => Piece::pawn(color),
         };
-        self.update_hash(ms);
+        //self.update_hash(ms);
 
         self.modify(|b| {
             if ms.mv.promotion != Piece::Empty {
@@ -78,20 +78,23 @@ impl Board {
                 b.r#move(r_dest, r_origin);
             }
             b.toggle_color_to_move();
+            // Reset hash-tracked metadata
+            b.set_castle(Color::White, ms.castle[Color::White]);
+            b.set_castle(Color::Black, ms.castle[Color::Black]);
+            b.set_ep_target(ms.ep_target);
         });
 
-        // Resetting metadata
+        // Resetting other metadata
         if piece.is_color(Color::Black) {
             self.fullmove -= 1;
         }
-        self.castle = ms.castle;
-        self.ep_target = ms.ep_target;
         self.halfmove = ms.halfmove;
     }
 
     pub unsafe fn make_unchecked(&mut self, mv: Move) {
         let piece = self[mv.origin];
-        let capture = self.modify(|b| -> Piece {
+
+        let ms = self.modify(|b| -> MoveState {
             let is_ep = if let Some(e) = b.board().ep_target {
                 e == mv.dest && piece.is_kind(PieceKind::Pawn)
             } else {
@@ -103,6 +106,13 @@ impl Board {
                 let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
                 capture = b.clear(index)
             }
+            let move_state = MoveState {
+                mv,
+                capture,
+                castle: b.board().castle,
+                halfmove: b.board().halfmove,
+                ep_target: b.board().ep_target,
+            };
             if mv.promotion != Piece::Empty {
                 b.put(mv.promotion, mv.dest);
             }
@@ -123,67 +133,67 @@ impl Board {
                 b.r#move(Square(r_origin), Square(r_dest));
             }
             b.toggle_color_to_move();
-            capture
+
+            if piece.is_kind(PieceKind::Pawn) {
+                // Check if double push to set ep_target
+                if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
+                    b.set_ep_target(Some(Square(mv.origin.index().max(mv.dest.index()) - 8)));
+                } else {
+                    b.set_ep_target(None);
+                }
+            } else {
+                b.set_ep_target(None);
+            }
+
+            // Update castling
+            match piece {
+                Piece::Filled(PieceKind::King, color) => b.set_castle(color, Castle::None),
+                Piece::Filled(PieceKind::Rook, color) => {
+                    let is_white = color == Color::White;
+                    if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
+                        b.set_castle(color, b.board().castle[color].with_queen_side(false));
+                    } else if is_white && mv.origin.index() == 56
+                        || !is_white && mv.origin.index() == 0
+                    {
+                        b.set_castle(color, b.board().castle[color].with_king_side(false));
+                    }
+                }
+                _ => (),
+            }
+            //if let Piece::Filled(PieceKind::King, color) = piece {
+            //    b.set_castle(color, Castle::None);
+            //}
+            //if let Piece::Filled(PieceKind::Rook, color) = piece {
+            //    let is_white = color == Color::White;
+            //    if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
+            //        b.set_castle(color, b.board().castle[color].with_queen_side(false));
+            //    } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0
+            //    {
+            //        b.set_castle(color, b.board().castle[color].with_king_side(false));
+            //    }
+            //}
+            if let Piece::Filled(PieceKind::Rook, color) = capture {
+                let is_white = capture.is_color(Color::White);
+                //let ci_offset = if is_white { 0 } else { 2 };
+                if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
+                    b.set_castle(color, b.board().castle[color].with_queen_side(false));
+                } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
+                    b.set_castle(color, b.board().castle[color].with_king_side(false));
+                }
+            }
+            move_state
         });
 
-        let move_state = MoveState {
-            mv,
-            capture,
-            castle: self.castle,
-            halfmove: self.halfmove,
-            ep_target: self.ep_target,
-        };
-
         // Updating metadata
-        self.move_history.push(move_state);
+        self.move_history.push(ms);
         if piece.is_color(Color::Black) {
             self.fullmove += 1
         }
-        if capture == Piece::Empty {
+        if ms.capture == Piece::Empty && piece.is_kind(PieceKind::Pawn) {
             self.halfmove += 1;
         } else {
             self.halfmove = 0;
         }
-
-        if piece.is_kind(PieceKind::Pawn) {
-            //reset halfmove
-            self.halfmove = 0;
-
-            // Check if double push to set ep_target
-            if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
-                self.ep_target = Some(Square(mv.origin.index().max(mv.dest.index()) - 8));
-            } else {
-                self.ep_target = None;
-            }
-        } else {
-            self.ep_target = None;
-        }
-
-        // Update castling
-        if piece.is_kind(PieceKind::King) {
-            let ci_offset = if piece.is_color(Color::White) { 0 } else { 2 };
-            self.castle[ci_offset] = false;
-            self.castle[1 | ci_offset] = false;
-        }
-        if piece.is_kind(PieceKind::Rook) {
-            let is_white = piece.is_color(Color::White);
-            let ci_offset = if is_white { 0 } else { 2 };
-            if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
-                self.castle[1 | ci_offset] = false;
-            } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0 {
-                self.castle[ci_offset] = false;
-            }
-        }
-        if capture.is_kind(PieceKind::Rook) {
-            let is_white = capture.is_color(Color::White);
-            let ci_offset = if is_white { 0 } else { 2 };
-            if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
-                self.castle[1 | ci_offset] = false;
-            } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
-                self.castle[ci_offset] = false;
-            }
-        }
-        self.update_hash(move_state);
     }
 }
 

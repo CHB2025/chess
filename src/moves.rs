@@ -1,6 +1,6 @@
 use std::{fmt, str};
 
-use crate::{BoardError, ErrorKind, Piece, Square};
+use crate::{BoardError, ErrorKind, Piece, Square, Castle};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Move {
@@ -65,7 +65,7 @@ impl str::FromStr for Move {
 pub struct MoveState {
     pub mv: Move,
     pub capture: Piece,
-    pub castle: [bool; 4],
+    pub castle: [Castle; 2],
     pub halfmove: u32,
     pub ep_target: Option<Square>,
 }
