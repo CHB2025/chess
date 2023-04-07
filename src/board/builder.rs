@@ -1,8 +1,8 @@
-use std::str::FromStr;
+use std::{str::FromStr, ops};
 
 use regex::Regex;
 
-use super::Board;
+use super::{Board, BoardIter};
 use crate::{BoardError, Castle, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
 
 #[derive(Debug)]
@@ -13,6 +13,17 @@ pub struct BoardBuilder {
     ep_target: Option<Square>,
     halfmove: u32,
     fullmove: u32,
+}
+
+impl IntoIterator for &BoardBuilder {
+    type Item = Piece;
+    type IntoIter = BoardIter; 
+
+    /// Returns an iterator of all the pieces on the board in big-endian order
+    /// (h8-a1).
+    fn into_iter(self) -> Self::IntoIter {
+        self.pieces.into_iter()
+    }
 }
 
 impl Default for BoardBuilder {
@@ -43,6 +54,20 @@ impl Default for BoardBuilder {
         }
     }
 }
+
+impl ops::Index<Square> for BoardBuilder {
+    type Output = Piece;
+
+    fn index(&self, index: Square) -> &Self::Output {
+        &self.pieces[index.index() as usize]
+    }
+}
+impl ops::IndexMut<Square> for BoardBuilder {
+    fn index_mut(&mut self, index: Square) -> &mut Self::Output {
+        &mut self.pieces[index.index() as usize]
+    }
+}
+
 
 impl BoardBuilder {
     /// Returns a new [BoardBuilder].

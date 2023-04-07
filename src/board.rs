@@ -38,6 +38,19 @@ pub struct Board {
     hash_keys: [u64; 781],
 }
 
+pub type BoardIter = std::array::IntoIter<Piece, 64>;
+
+impl IntoIterator for &Board {
+    type Item = Piece;
+    type IntoIter = BoardIter;
+
+    /// Returns an iterator of all the pieces on the board in big-endian order
+    /// (h8-a1).
+    fn into_iter(self) -> Self::IntoIter {
+        self.pieces.into_iter()
+    }
+}
+
 impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut output = String::new();
@@ -66,17 +79,6 @@ impl FromStr for Board {
 impl Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_fen())
-    }
-}
-
-impl IntoIterator for &Board {
-    type Item = Piece;
-    type IntoIter = std::array::IntoIter<Self::Item, 64>;
-
-    /// Returns an iterator of all the pieces on the board in big-endian order
-    /// (h8-a1).
-    fn into_iter(self) -> Self::IntoIter {
-        self.pieces.into_iter()
     }
 }
 
