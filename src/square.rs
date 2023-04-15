@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::{fmt, str};
 
-use crate::{Bitboard, Dir, BoardError, ErrorKind};
+use crate::{Bitboard, BoardError, Dir, ErrorKind};
 
 const A1: u8 = 63;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Square(pub(super) u8);
 
 impl fmt::Display for Square {
@@ -96,7 +97,7 @@ impl Square {
     }
     #[inline(always)]
     pub fn diagonal(&self) -> u8 {
-        self.rank().wrapping_sub(self.file())  & 15 
+        self.rank().wrapping_sub(self.file()) & 15
     }
     #[inline(always)]
     pub fn anti_diagonal(&self) -> u8 {

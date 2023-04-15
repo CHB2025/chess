@@ -1,16 +1,22 @@
+use serde::{Deserialize, Serialize};
 use std::{fmt, ops, str};
 
 use crate::error::{BoardError, ErrorKind};
 
-pub const PROMO_PIECES: [PieceKind; 4] = [PieceKind::Queen, PieceKind::Bishop, PieceKind::Knight, PieceKind::Rook];
+pub const PROMO_PIECES: [PieceKind; 4] = [
+    PieceKind::Queen,
+    PieceKind::Bishop,
+    PieceKind::Knight,
+    PieceKind::Rook,
+];
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Piece {
     Filled(PieceKind, Color),
     Empty,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum PieceKind {
     King,
     Queen,
@@ -20,7 +26,7 @@ pub enum PieceKind {
     Pawn,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Color {
     White,
     Black,

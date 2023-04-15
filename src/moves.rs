@@ -1,8 +1,10 @@
 use std::{fmt, str};
 
+use serde::{Serialize, Deserialize};
+
 use crate::{BoardError, ErrorKind, Piece, Square, Castle};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Move {
     pub origin: Square,
     pub dest: Square,

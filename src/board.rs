@@ -90,6 +90,15 @@ impl default::Default for Board {
     }
 }
 
+impl PartialEq for Board {
+    fn eq(&self, other: &Self) -> bool {
+        self.bitboards == other.bitboards
+            && self.color_to_move == other.color_to_move
+            && self.castle == other.castle
+            && self.ep_target == other.ep_target
+    }
+}
+
 impl Hash for Board {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.hash.hash(state);
