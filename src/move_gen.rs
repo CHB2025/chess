@@ -58,7 +58,7 @@ pub fn legal(board: &Board) -> Vec<Move> {
         PieceKind::Queen,
     );
     king_moves(board, &mut mv_list, board.color_to_move());
-    filter_moves_by_check(&board, &mut mv_list, board.color_to_move());
+    filter_moves_by_check(board, &mut mv_list, board.color_to_move());
     mv_list
 }
 
@@ -97,7 +97,7 @@ pub fn for_square(board: &Board, sqr: Square) -> Vec<Move> {
             PieceKind::King => king_moves(board, &mut move_list, color),
         }
     }
-    filter_moves_by_check(&board, &mut move_list, board.color_to_move());
+    filter_moves_by_check(board, &mut move_list, board.color_to_move());
     move_list
 }
 

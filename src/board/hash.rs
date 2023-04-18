@@ -19,9 +19,9 @@ pub(super) fn zobrist_keys() -> [u64; 781] {
 pub(super) fn seeded_zobrist_keys(seed: [u8; 32]) -> [u64; 781] {
     let mut keys = [0u64; 781];
     let mut rng = StdRng::from_seed(seed);
-    for i in 0..keys.len() {
-        keys[i] = rng.next_u64();
-    }
+    keys.iter_mut().for_each(|key| {
+        *key = rng.next_u64();
+    });
     keys
 }
 
@@ -83,5 +83,4 @@ mod tests {
         }
         assert_eq!(initial, board.hash);
     }
-
 }

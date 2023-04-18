@@ -5,7 +5,8 @@ use std::{
     str::FromStr,
 };
 
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::{
     move_gen, Bitboard, BoardBuilder, BoardError, Castle, Check, Color, Move, MoveState, Piece,
@@ -16,14 +17,14 @@ use self::modify::Modifier;
 
 mod attacks;
 pub mod builder;
-mod deserialize;
 mod hash;
 mod index;
 mod make;
 mod modify;
 mod perft;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Board {
     bitboards: [Bitboard; 13],
     color_bitboards: [Bitboard; 2],
@@ -31,7 +32,7 @@ pub struct Board {
     pins: Bitboard,
     check: Check,
     color_to_move: Color,
-    #[serde(with = "serde_arrays")]
+    #[cfg_attr(feature = "serde", serde(with = "serde_arrays"))]
     pieces: [Piece; 64],
     castle: [Castle; 2],
     ep_target: Option<Square>,
@@ -39,7 +40,7 @@ pub struct Board {
     fullmove: u32,
     move_history: Vec<MoveState>,
     hash: u64,
-    #[serde(skip, default = "hash::zobrist_keys")]
+    #[cfg_attr(feature = "serde", serde(skip, default = "hash::zobrist_keys"))]
     hash_keys: [u64; 781],
 }
 

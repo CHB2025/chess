@@ -8,13 +8,17 @@ edition = "2021"
 [dependencies]
 nohash-hasher = "0.2.0"
 rand = "0.8.5"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.2" }
 regex = "1"
-serde = { version = "1.0.160", features = ["derive"] }
+serde = { version = "1.0.160", features = ["derive"], optional = true }
 serde_arrays = "0.1.0"
 
 [dev-dependencies]
 criterion = "0.4"
+
+[features]
+serde = ["dep:serde"]
+wasm = ["getrandom/js"]
 
 [[bench]]
 name = "moves"

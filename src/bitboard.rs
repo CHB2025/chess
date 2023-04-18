@@ -1,8 +1,9 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
     ShrAssign,
 };
-use serde::{Serialize, Deserialize};
 
 use crate::{Dir, Ray, Square};
 
@@ -12,11 +13,11 @@ pub const NOT_A_FILE: Bitboard = Bitboard(0x7f7f7f7f7f7f7f7f);
 pub const NOT_H_FILE: Bitboard = Bitboard(0xfefefefefefefefe);
 
 // Should make new method instead of public access to value
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Bitboard(u64);
 
 impl Bitboard {
-
     pub const fn new(initial: u64) -> Bitboard {
         Bitboard(initial)
     }

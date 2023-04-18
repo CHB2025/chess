@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Castle {
     Both,
     KingSide,
@@ -22,14 +23,6 @@ impl Display for Castle {
         write!(f, "{}", output)
     }
 }
-
-//impl FromStr for Castle {
-//    type Err = BoardError;
-//
-//    fn from_str(s: &str) -> Result<Self, Self::Err> {
-//        todo!()
-//    }
-//}
 
 impl Castle {
     pub fn with_king_side(self, may_castle: bool) -> Self {
@@ -51,16 +44,10 @@ impl Castle {
     }
 
     pub fn get_king_side(self) -> bool {
-        match self {
-            Castle::Both | Castle::KingSide => true,
-            _ => false,
-        }
+        matches!(self, Castle::Both | Castle::KingSide)
     }
 
     pub fn get_queen_side(self) -> bool {
-        match self {
-            Castle::Both | Castle::QueenSide => true,
-            _ => false,
-        }
+        matches!(self, Castle::Both | Castle::QueenSide)
     }
 }

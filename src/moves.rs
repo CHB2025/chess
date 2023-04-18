@@ -1,10 +1,12 @@
 use std::{fmt, str};
 
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
-use crate::{BoardError, ErrorKind, Piece, Square, Castle};
+use crate::{BoardError, Castle, ErrorKind, Piece, Square};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Move {
     pub origin: Square,
     pub dest: Square,
@@ -63,7 +65,8 @@ impl str::FromStr for Move {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MoveState {
     pub mv: Move,
     pub capture: Piece,

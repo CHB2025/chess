@@ -1,3 +1,4 @@
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{fmt, str};
 
@@ -5,7 +6,8 @@ use crate::{Bitboard, BoardError, Dir, ErrorKind};
 
 const A1: u8 = 63;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Square(pub(super) u8);
 
 impl fmt::Display for Square {

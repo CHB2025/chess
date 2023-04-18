@@ -1,14 +1,16 @@
-use std::{str::FromStr, ops};
+use std::{ops, str::FromStr};
 
 use regex::Regex;
-use serde::{Serialize, Deserialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use super::{Board, BoardIter};
 use crate::{BoardError, Castle, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BoardBuilder {
-    #[serde(with = "serde_arrays")]
+    #[cfg_attr(feature = "serde", serde(with = "serde_arrays"))]
     pieces: [Piece; 64],
     color_to_move: Color,
     castle: [Castle; 2],
@@ -19,7 +21,7 @@ pub struct BoardBuilder {
 
 impl IntoIterator for &BoardBuilder {
     type Item = Piece;
-    type IntoIter = BoardIter; 
+    type IntoIter = BoardIter;
 
     /// Returns an iterator of all the pieces on the board in big-endian order
     /// (h8-a1).
@@ -69,7 +71,6 @@ impl ops::IndexMut<Square> for BoardBuilder {
         &mut self.pieces[index.index() as usize]
     }
 }
-
 
 impl BoardBuilder {
     /// Returns a new [BoardBuilder].
@@ -367,7 +368,7 @@ impl BoardBuilder {
         // Switching color to move and updating attacks, pins, and checks
         board.modify(|m| (m.toggle_color_to_move()));
 
-        if board.legal_moves().len() == 0 {
+        if board.legal_moves().is_empty() {
             return Err(BoardError::new(
                 ErrorKind::InvalidInput,
                 "First color to move must have available moves",
@@ -421,7 +422,7 @@ mod tests {
             ),
         ];
         for (fen, is_valid) in fen_strings {
-            let builder = BoardBuilder::from_fen(&fen);
+            let builder = BoardBuilder::from_fen(fen);
             assert_eq!(
                 builder.is_ok() && builder.unwrap().build().is_ok(),
                 is_valid,
