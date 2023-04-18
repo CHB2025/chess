@@ -68,6 +68,7 @@ dependencies = [
  "rand",
  "regex",
  "serde",
+ "serde_arrays",
 ]
 
 [[package]]
@@ -508,6 +509,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb2f3770c8bce3bcda7e149193a069a0f4365bda1fa5cd88e03bca26afc1216c"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_arrays"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38636132857f68ec3d5f3eb121166d2af33cb55174c4d5ff645db6165cbef0fd"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

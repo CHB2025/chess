@@ -63,7 +63,7 @@ impl str::FromStr for Move {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct MoveState {
     pub mv: Move,
     pub capture: Piece,

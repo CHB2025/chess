@@ -1,12 +1,14 @@
 use std::{str::FromStr, ops};
 
 use regex::Regex;
+use serde::{Serialize, Deserialize};
 
 use super::{Board, BoardIter};
 use crate::{BoardError, Castle, Check, Color, Dir, ErrorKind, Piece, PieceKind, Square};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BoardBuilder {
+    #[serde(with = "serde_arrays")]
     pieces: [Piece; 64],
     color_to_move: Color,
     castle: [Castle; 2],

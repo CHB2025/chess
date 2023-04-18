@@ -1,7 +1,9 @@
 use std::fmt::Display;
 
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum Castle {
     Both,
     KingSide,
