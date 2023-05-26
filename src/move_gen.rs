@@ -1,8 +1,6 @@
 use crate::{
-    dir::{BISHOP_DIRS, ROOK_DIRS},
-    piece::PROMO_PIECES,
-    Bitboard, Board, Check, Color, Dir, Move, Piece, PieceKind, Ray, Square, ALL, ALL_DIRS, EMPTY,
-    NOT_A_FILE, NOT_H_FILE,
+    piece::PROMO_PIECES, Bitboard, Board, Check, Color, Dir, Move, Piece, PieceKind, Ray, Square,
+    ALL, ALL_DIRS, EMPTY, NOT_A_FILE, NOT_H_FILE,
 };
 
 /// Use this function to get a list of all legal moves in the given [Board].
@@ -24,6 +22,9 @@ use crate::{
 pub fn legal(board: &Board) -> Vec<Move> {
     let mut mv_list = Vec::with_capacity(50);
     // Fill in moves
+    let sliders = board[Piece::Filled(PieceKind::Bishop, board.color_to_move())]
+        | board[Piece::Filled(PieceKind::Rook, board.color_to_move())]
+        | board[Piece::Filled(PieceKind::Queen, board.color_to_move())];
     pawn_moves(
         board,
         &mut mv_list,
@@ -36,27 +37,7 @@ pub fn legal(board: &Board) -> Vec<Move> {
         board[Piece::Filled(PieceKind::Knight, board.color_to_move())],
         board.color_to_move(),
     );
-    sliding_moves(
-        board,
-        &mut mv_list,
-        board[Piece::Filled(PieceKind::Bishop, board.color_to_move())],
-        board.color_to_move(),
-        PieceKind::Bishop,
-    );
-    sliding_moves(
-        board,
-        &mut mv_list,
-        board[Piece::Filled(PieceKind::Rook, board.color_to_move())],
-        board.color_to_move(),
-        PieceKind::Rook,
-    );
-    sliding_moves(
-        board,
-        &mut mv_list,
-        board[Piece::Filled(PieceKind::Queen, board.color_to_move())],
-        board.color_to_move(),
-        PieceKind::Queen,
-    );
+    sliding_moves(board, &mut mv_list, sliders, board.color_to_move());
     king_moves(board, &mut mv_list, board.color_to_move());
     filter_moves_by_check(board, &mut mv_list, board.color_to_move());
     mv_list
@@ -85,16 +66,8 @@ pub fn for_square(board: &Board, sqr: Square) -> Vec<Move> {
         match kind {
             PieceKind::Pawn => pawn_moves(board, &mut move_list, sqr.into(), color),
             PieceKind::Knight => knight_moves(board, &mut move_list, sqr.into(), color),
-            PieceKind::Rook => {
-                sliding_moves(board, &mut move_list, sqr.into(), color, PieceKind::Rook)
-            }
-            PieceKind::Bishop => {
-                sliding_moves(board, &mut move_list, sqr.into(), color, PieceKind::Bishop)
-            }
-            PieceKind::Queen => {
-                sliding_moves(board, &mut move_list, sqr.into(), color, PieceKind::Queen)
-            }
             PieceKind::King => king_moves(board, &mut move_list, color),
+            _ => sliding_moves(board, &mut move_list, sqr.into(), color),
         }
     }
     filter_moves_by_check(board, &mut move_list, board.color_to_move());
@@ -333,79 +306,29 @@ fn push_move_with_promotions(
 }
 
 #[inline(always)]
-fn sliding_moves(
-    board: &Board,
-    mvs: &mut Vec<Move>,
-    initial: Bitboard,
-    color: Color,
-    kind: PieceKind,
-) {
-    let dirs: &[Dir] = match kind {
-        PieceKind::Queen => &ALL_DIRS,
-        PieceKind::Rook => &ROOK_DIRS,
-        PieceKind::Bishop => &BISHOP_DIRS,
-        _ => return,
-    };
-
+fn sliding_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
     let pinned_pieces = initial & board.pins();
     let unpinned_pieces = initial ^ pinned_pieces;
 
-    //for d in dirs {
-    //    let mut mv = unpinned_pieces << *d;
-    //    let mut end = mv & board[Piece::Empty];
-    //    let mut attacks = mv & board[!color];
-    //    let mut dir_mult = 1;
-
-    //    while !end.is_empty() || !attacks.is_empty() {
-    //        for dest in end | attacks {
-    //            let origin = Square((dest.index() as i32 - (d.offset() * dir_mult)) as u8);
-    //            mvs.push(Move {
-    //                origin, dest, promotion: Piece::Empty
-    //            })
-    //        }
-    //        mv = end << *d;
-    //        end = mv & board[Piece::Empty];
-    //        attacks = mv & board[!color];
-    //        dir_mult += 1;
-    //    }
-    //}
-
     for origin in unpinned_pieces {
-        for d in dirs {
-            let ray = Ray { origin, dir: *d };
-            for dest in ray {
-                if board[dest].color() == Some(color) {
-                    break;
-                }
-                mvs.push(Move {
-                    origin,
-                    dest,
-                    promotion: Piece::Empty,
-                });
-                if board[dest].color() == Some(!color) {
-                    break;
-                }
-            }
+        for dest in board.premove_cache(origin) & !board.side(color) {
+            mvs.push(Move {
+                origin,
+                dest,
+                promotion: Piece::Empty,
+            })
         }
     }
 
     for origin in pinned_pieces {
         let ray = Ray::from(board.king(color), origin)
             .expect("If piece is pinned, it must be in a line with the king");
-        if ray.dir.piece_kind() == kind || kind == PieceKind::Queen {
-            for dest in ray {
-                if dest == origin {
-                    continue;
-                }
-                mvs.push(Move {
-                    origin,
-                    dest,
-                    promotion: Piece::Empty,
-                });
-                if board[dest].color() == Some(!color) {
-                    break;
-                }
-            }
+        for dest in board.premove_cache(origin) & !board.side(color) & ray.into() {
+            mvs.push(Move {
+                origin,
+                dest,
+                promotion: Piece::Empty,
+            })
         }
     }
 }

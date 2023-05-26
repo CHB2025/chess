@@ -29,7 +29,6 @@ mod perft;
 pub struct Board {
     bitboards: [Bitboard; 13],
     color_bitboards: [Bitboard; 2],
-    attacks: Bitboard,
     pins: Bitboard,
     check: Check,
     color_to_move: Color,
@@ -145,7 +144,6 @@ impl Board {
                 ALL,
             ],
             color_bitboards: [EMPTY; 2],
-            attacks: EMPTY,
             pins: EMPTY,
             check: Check::None,
             pieces: [Piece::Empty; 64],
@@ -255,7 +253,13 @@ impl Board {
     }
 
     pub fn attacks(&self) -> Bitboard {
-        self.attacks
+        self.move_cache
+            .into_iter()
+            .enumerate()
+            .fold(EMPTY, |f, (i, bb)| match self.pieces[i] {
+                Piece::Filled(_, c) if c != self.color_to_move => f | bb,
+                _ => f,
+            })
     }
 
     pub fn pins(&self) -> Bitboard {
@@ -268,5 +272,14 @@ impl Board {
 
     pub fn hash(&self) -> u64 {
         self.hash
+    }
+
+    // not sure this should be public, possibly just rename it
+    pub fn premove_cache(&self, square: Square) -> Bitboard {
+        self.move_cache[square]
+    }
+
+    pub fn side(&self, color: Color) -> Bitboard {
+        self.color_bitboards[color]
     }
 }

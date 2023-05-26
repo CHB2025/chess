@@ -12,20 +12,8 @@ impl Board {
     #[inline]
     pub(super) fn update_position(&mut self) {
         self.update_pins_and_checks();
-        self.attacks = self.gen_attacks(!self.color_to_move);
+        //self.attacks = self.gen_attacks(!self.color_to_move);
     }
-
-    // Only for determining check
-    #[inline]
-    pub(super) fn gen_attacks(&self, color: Color) -> Bitboard {
-        let queen = self[Piece::queen(color)];
-        let mut output = self.pawn_attacks(self[Piece::pawn(color)], color);
-        output |= self.king_attacks(self[Piece::king(color)]);
-        output |= self.bishop_attacks(self[Piece::bishop(color)] | queen, color);
-        output |= self.rook_attacks(self[Piece::rook(color)] | queen, color);
-        output | self.knight_attacks(self[Piece::knight(color)])
-    }
-    
 
     #[inline]
     fn pawn_attacks(&self, initial: Bitboard, for_color: Color) -> Bitboard {
@@ -47,41 +35,6 @@ impl Board {
             NOT_A_FILE,
             vertical + Dir::East.offset(),
         );
-        output
-    }
-
-    #[inline]
-    fn king_attacks(&self, initial: Bitboard) -> Bitboard {
-        ALL_DIRS.into_iter().fold(EMPTY, |o, d| {
-            o | moves(initial, EMPTY, d.filter(), d.offset())
-        })
-    }
-
-    #[inline]
-    fn bishop_attacks(&self, initial: Bitboard, color: Color) -> Bitboard {
-        let f = self[Piece::Empty] | self[Piece::king(!color)];
-        let o = !f;
-
-        let dirs = [Dir::NorEast, Dir::SouEast, Dir::SouWest, Dir::NorWest];
-
-        let mut output = EMPTY;
-        for dir in dirs {
-            output |= moves(initial, f & dir.filter(), o & dir.filter(), dir.offset());
-        }
-        output
-    }
-
-    #[inline]
-    fn rook_attacks(&self, initial: Bitboard, color: Color) -> Bitboard {
-        let f = self[Piece::Empty] | self[Piece::king(!color)];
-        let o = !f;
-
-        let dirs = [Dir::North, Dir::East, Dir::South, Dir::West];
-
-        let mut output = EMPTY;
-        for dir in dirs {
-            output |= moves(initial, f & dir.filter(), o & dir.filter(), dir.offset());
-        }
         output
     }
 

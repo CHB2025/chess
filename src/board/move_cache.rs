@@ -7,7 +7,7 @@ pub(crate) fn moves(piece: Piece, square: Square, free: Bitboard) -> Bitboard {
     match piece {
         Piece::Empty => EMPTY,
         Piece::Filled(PieceKind::King, _) => king_moves(square),
-        Piece::Filled(PieceKind::Pawn, color) => pawn_moves(color, square, free),
+        Piece::Filled(PieceKind::Pawn, color) => pawn_moves(color, square),
         Piece::Filled(PieceKind::Knight, _) => knight_moves(square),
         Piece::Filled(k, _) => sliding_moves(square, k, free),
     }
@@ -91,30 +91,32 @@ fn knight_moves(square: Square) -> Bitboard {
         .collect()
 }
 
-fn pawn_moves(color: Color, square: Square, free: Bitboard) -> Bitboard {
-    let dir = if color == Color::White {
-        Dir::North
-    } else {
-        Dir::South
-    };
+// Should pushes even be in this? what value do they add? they are quick to add 
+// in move_gen, but they get in the way for things like checks and 
+fn pawn_moves(color: Color, square: Square/*, free: Bitboard*/) -> Bitboard {
+    //let dir = if color == Color::White {
+    //    Dir::North
+    //} else {
+    //    Dir::South
+    //};
 
-    let dp_free = free
-        & (free << dir)
-        & match color {
-            Color::White => Bitboard::new(0xff00000000u64),
-            Color::Black => Bitboard::new(0xff000000u64),
-        };
+    //let dp_free = free
+    //    & (free << dir)
+    //    & match color {
+    //        Color::White => Bitboard::new(0xff00000000u64),
+    //        Color::Black => Bitboard::new(0xff000000u64),
+    //    };
     let mut result = EMPTY;
-    if let Some(target) = square.checked_add(dir) {
-        if free.contains(target) {
-            result |= target.into();
-        }
-        if let Some(target) = target.checked_add(dir) {
-            if dp_free.contains(target) {
-                result |= target.into()
-            }
-        }
-    }
+    //if let Some(target) = square.checked_add(dir) {
+    //    if free.contains(target) {
+    //        result |= target.into();
+    //    }
+    //    if let Some(target) = target.checked_add(dir) {
+    //        if dp_free.contains(target) {
+    //            result |= target.into()
+    //        }
+    //    }
+    //}
 
     let left_attack = match color {
         Color::White => Dir::NorWest,
