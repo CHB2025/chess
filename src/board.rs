@@ -21,6 +21,7 @@ mod hash;
 mod index;
 mod make;
 mod modify;
+mod move_cache;
 mod perft;
 
 #[derive(Clone)]
@@ -34,6 +35,8 @@ pub struct Board {
     color_to_move: Color,
     #[cfg_attr(feature = "serde", serde(with = "serde_arrays"))]
     pieces: [Piece; 64],
+    #[cfg_attr(feature = "serde", serde(with = "serde_arrays"))]
+    move_cache: [Bitboard; 64],
     castle: [Castle; 2],
     ep_target: Option<Square>,
     halfmove: u32,
@@ -146,6 +149,7 @@ impl Board {
             pins: EMPTY,
             check: Check::None,
             pieces: [Piece::Empty; 64],
+            move_cache: [EMPTY; 64],
             color_to_move: Color::White,
             castle: [Castle::None; 2],
             ep_target: None,

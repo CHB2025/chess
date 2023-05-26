@@ -23,6 +23,25 @@ impl<'a> Modifier<'a> {
             hash::increment_hash(self.board, piece, square);
         }
 
+        // Update cashe
+        let free = ALL
+            ^ self.board.color_bitboards[Color::White]
+            ^ self.board.color_bitboards[Color::Black];
+        self.board.move_cache[square] = move_cache::moves(piece, square, free);
+        if piece == Piece::Empty || replaced == Piece::Empty {
+            // Don't need to check captures because move_cache includes first 
+            // piece regardless of color
+            self.board
+                .move_cache
+                .iter_mut()
+                .enumerate()
+                .filter_map(|(i, b)| match b.contains(square) {
+                    true => Some((Square::try_from(i).expect("0-63 are valid squares"), b)),
+                    false => None,
+                })
+                .for_each(|(sq, b)| *b = move_cache::moves(self.board.pieces[sq], sq, free));
+        }
+
         replaced
     }
 
