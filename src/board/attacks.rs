@@ -1,6 +1,5 @@
-use crate::{Piece, Color, Bitboard, Dir, ALL_DIRS, NOT_A_FILE, NOT_H_FILE, EMPTY, Check};
 use super::Board;
-
+use crate::{Bitboard, Check, Color, Dir, Piece, ALL_DIRS, EMPTY, NOT_A_FILE, NOT_H_FILE};
 
 const UP: i32 = -8;
 const DOWN: i32 = 8;
@@ -8,7 +7,6 @@ const LEFT: i32 = 1;
 const RIGHT: i32 = -1;
 
 impl Board {
-    
     #[inline]
     pub(super) fn update_position(&mut self) {
         self.update_pins_and_checks();
@@ -23,18 +21,8 @@ impl Board {
             Dir::South.offset()
         };
 
-        let mut output = moves(
-            initial,
-            EMPTY,
-            NOT_H_FILE,
-            vertical + Dir::West.offset(),
-        );
-        output |= moves(
-            initial,
-            EMPTY,
-            NOT_A_FILE,
-            vertical + Dir::East.offset(),
-        );
+        let mut output = moves(initial, EMPTY, NOT_H_FILE, vertical + Dir::West.offset());
+        output |= moves(initial, EMPTY, NOT_A_FILE, vertical + Dir::East.offset());
         output
     }
 
@@ -84,12 +72,11 @@ impl Board {
         }
 
         if c.count_squares() < 2 {
-        let pawn_attacks = self.pawn_attacks(initial, color) & self[Piece::pawn(!color)];
-        if !pawn_attacks.is_empty(){
-            c |= pawn_attacks;
+            let pawn_attacks = self.pawn_attacks(initial, color) & self[Piece::pawn(!color)];
+            if !pawn_attacks.is_empty() {
+                c |= pawn_attacks;
+            }
         }
-        }
-        
 
         let knight_attacks = self.knight_attacks(initial) & self[Piece::knight(!color)];
         if !knight_attacks.is_empty() {
@@ -100,7 +87,7 @@ impl Board {
         self.check = match c.count_squares() {
             0 => Check::None,
             1 => Check::Single(c.first_square().expect("match says there's a square")),
-            _ => Check::Double,
+            _ => Check::Double(c),
         }
     }
 }
@@ -119,7 +106,7 @@ fn moves(initial: Bitboard, free: Bitboard, cap: Bitboard, dir: i32) -> Bitboard
     let mut end = mv & free;
     let mut attacks = mv & cap;
 
-    while !end.is_empty()  || !attacks.is_empty() {
+    while !end.is_empty() || !attacks.is_empty() {
         output |= end;
         output |= attacks;
         mv = shift(end);

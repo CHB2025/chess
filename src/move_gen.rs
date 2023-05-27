@@ -1,6 +1,6 @@
 use crate::{
     piece::PROMO_PIECES, Bitboard, Board, Check, Color, Dir, Move, Piece, PieceKind, Ray, Square,
-    ALL, ALL_DIRS, EMPTY, NOT_A_FILE, NOT_H_FILE,
+    ALL, ALL_DIRS, EMPTY,
 };
 
 /// Use this function to get a list of all legal moves in the given [Board].
@@ -91,7 +91,7 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
         Check::Single(sqr) => {
             Bitboard::between(board.king(board.color_to_move()), sqr) | sqr.into()
         }
-        Check::Double => EMPTY,
+        Check::Double(_) => EMPTY,
     };
 
     mvs.retain(|mv| {
@@ -106,7 +106,29 @@ fn filter_moves_by_check(board: &Board, mvs: &mut Vec<Move>, color: Color) {
 #[inline(always)]
 fn king_moves(board: &Board, mvs: &mut Vec<Move>, color: Color) {
     let origin = board.king(color);
-    let free = (board[Piece::Empty] | board[!color]) & !board.attacks();
+    let sliding_check = match board.check() {
+        Check::Single(sq)
+            if matches!(
+                board[sq],
+                Piece::Filled(PieceKind::Rook | PieceKind::Bishop | PieceKind::Queen, _)
+            ) =>
+        {
+            Ray::from(sq, origin)
+                .expect("Rook, Bishop, or Queen will be aligned")
+                .into()
+        }
+        Check::Double(bb) => bb
+            .into_iter()
+            .filter_map(|sq| match board[sq] {
+                Piece::Filled(PieceKind::Rook | PieceKind::Bishop | PieceKind::Queen, _) => Some(
+                    Bitboard::from(Ray::from(sq, origin).expect("will be aligned")),
+                ),
+                _ => None,
+            })
+            .fold(EMPTY, |acc, add| acc | add),
+        _ => EMPTY,
+    };
+    let free = (board[Piece::Empty] | board[!color]) & !board.attacks() & !sliding_check;
 
     for dir in ALL_DIRS {
         if let Some(dest) = origin.checked_add(dir) {
@@ -335,52 +357,13 @@ fn sliding_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: C
 
 #[inline(always)]
 fn knight_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Color) {
-    let cap = board[!color] | board[Piece::Empty];
-
-    let dirs = [
-        (
-            Dir::North.offset() + Dir::NorEast.offset(),
-            Dir::NorEast.filter(),
-        ),
-        (
-            Dir::NorEast.offset() + Dir::East.offset(),
-            NOT_A_FILE & (NOT_A_FILE >> 1),
-        ),
-        (
-            Dir::SouEast.offset() + Dir::East.offset(),
-            NOT_A_FILE & (NOT_A_FILE >> 1),
-        ),
-        (
-            Dir::South.offset() + Dir::SouEast.offset(),
-            Dir::SouEast.filter(),
-        ),
-        (
-            Dir::South.offset() + Dir::SouWest.offset(),
-            Dir::SouWest.filter(),
-        ),
-        (
-            Dir::SouWest.offset() + Dir::West.offset(),
-            NOT_H_FILE & (NOT_H_FILE << 1),
-        ),
-        (
-            Dir::NorWest.offset() + Dir::West.offset(),
-            NOT_H_FILE & (NOT_H_FILE << 1),
-        ),
-        (
-            Dir::North.offset() + Dir::NorWest.offset(),
-            Dir::NorWest.filter(),
-        ),
-    ];
-
-    for sqr in initial & !board.pins() {
-        for (offset, filter) in dirs {
-            if let Some(dest) = ((Bitboard::from(sqr) << offset) & filter & cap).first_square() {
-                mvs.push(Move {
-                    origin: sqr,
-                    dest,
-                    promotion: Piece::Empty,
-                })
-            }
+    for origin in initial & !board.pins() {
+        for dest in board.premove_cache(origin) & !board.side(color) {
+            mvs.push(Move {
+                origin,
+                dest,
+                promotion: Piece::Empty,
+            })
         }
     }
 }

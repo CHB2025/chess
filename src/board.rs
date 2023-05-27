@@ -231,16 +231,14 @@ impl Board {
     }
 
     pub fn pin_on_square(&self, square: Square) -> Option<Ray> {
-        let piece = self[square];
-        match piece {
-            Piece::Filled(_, color) => {
-                if self.pins.contains(square) {
-                    Ray::from(self.king(color), square)
-                } else {
-                    None
-                }
+        if self.pins.contains(square) {
+            let piece = self[square];
+            match piece {
+                Piece::Filled(_, color) => Ray::from(self.king(color), square),
+                Piece::Empty => None,
             }
-            Piece::Empty => None,
+        } else {
+            None
         }
     }
 
@@ -253,6 +251,9 @@ impl Board {
     }
 
     pub fn attacks(&self) -> Bitboard {
+        // Move cache doesn't ignore the king like attacks should
+        // Meaning king can't move out of check by moving in line with sliding
+        // attacking piece
         self.move_cache
             .into_iter()
             .enumerate()
