@@ -1,4 +1,4 @@
-use crate::{PieceKind, Bitboard, ALL, NOT_A_FILE, NOT_H_FILE};
+use crate::{PieceKind, Bitboard, ALL, NOT_A_FILE, NOT_H_FILE, Square};
 
 pub const ALL_DIRS: [Dir; 8] = [
     Dir::North,
@@ -74,6 +74,18 @@ impl Dir {
             Dir::NorWest => NOT_H_FILE,
         }
         //
+    }
+
+    /// Returns the rank, file, diagonal, or antidiagonal for the given square that corresponds
+    /// with the given dir. For example, Dir::North returns the file, while Dir::East returns the
+    /// row
+    pub fn line_number(&self, square: Square) -> u8 {
+        match self {
+            Dir::North | Dir::South => square.file(),
+            Dir::East | Dir::West => square.rank(),
+            Dir::NorEast | Dir::SouWest => square.diagonal(),
+            Dir::NorWest | Dir::SouEast => square.anti_diagonal(),
+        }
     }
 
     /// Returns the piece (either rook or bishop) that moves in this direction. Ignores Queen,
