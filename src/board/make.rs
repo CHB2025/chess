@@ -1,14 +1,18 @@
 use crate::{
-    dir::Dir,
     error::{BoardError, ErrorKind},
     move_gen,
     moves::{Move, MoveState},
     piece::{Color, Piece, PieceKind},
     square::Square,
-    Board, Castle,
+    squares, Board, Castle,
 };
 
 impl Board {
+    /// Makes a move, checking to see if it is legal before making it.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [BoardError] if the move is not legal
     pub fn make(&mut self, mv: Move) -> Result<(), BoardError> {
         let piece = self[mv.origin];
         if !piece.is_color(self.color_to_move()) {
@@ -18,7 +22,6 @@ impl Board {
                 "Attempted to move wrong color",
             ));
         }
-        //let moves = self.moves_for_square(mv.origin);
         let moves = move_gen::for_square(self, mv.origin);
         if !moves.contains(&mv) {
             return Err(BoardError::new(ErrorKind::InvalidInput, "Invalid move"));
@@ -31,156 +34,156 @@ impl Board {
         Ok(())
     }
 
+    /// Unmakes the last move made. If no moves have been made, nothing happens.
     pub fn unmake(&mut self) {
         let ms = match self.move_history.pop() {
             Some(m) => m,
             None => return,
         };
-        let piece = match ms.mv.promotion {
+        let piece @ Piece::Filled(kind, color) = (match ms.mv.promotion {
             Piece::Empty => self[ms.mv.dest],
             Piece::Filled(_, color) => Piece::pawn(color),
+        }) else {
+            panic!("No moving an empty piece")
         };
-        //self.update_hash(ms);
 
-        self.modify(|b| {
-            if ms.mv.promotion != Piece::Empty {
-                b.put(piece, ms.mv.dest);
-            }
-            b.move_replace(ms.mv.dest, ms.mv.origin, ms.capture);
+        let Move {
+            origin,
+            dest,
+            promotion: _,
+        } = ms.mv;
 
-            let is_ep = if let Some(e) = ms.ep_target {
-                e.index() == ms.mv.dest.index() && piece.is_kind(PieceKind::Pawn)
-            } else {
-                false
-            };
+        self.modify(|modifier| {
+            modifier.put(piece, origin);
+            modifier.put(ms.capture, dest);
+
+            let is_ep = matches!(ms.ep_target, Some(e) if e == dest) && kind == PieceKind::Pawn;
 
             if is_ep {
                 let bit_index = (ms.mv.origin.index() & !0b111) | (ms.mv.dest.index() & 0b111);
-                let sqr = Square(bit_index);
-                b.put(ms.capture, sqr);
-                b.clear(ms.mv.dest);
+                let sqr = bit_index.try_into().expect("EP target wrong");
+                modifier.put(ms.capture, sqr);
+                modifier.clear(dest);
             }
 
-            let is_castle = piece.is_kind(PieceKind::King)
-                && ms.mv.dest.index().abs_diff(ms.mv.origin.index()) == 2;
-            let is_ks_castle: bool = is_castle && ms.mv.dest.index() < ms.mv.origin.index();
+            let is_castle = kind == PieceKind::King && dest.index().abs_diff(origin.index()) == 2;
+
+            let is_ks_castle = is_castle && dest.index() < origin.index();
             if is_castle {
-                let r_origin = Square(if is_ks_castle {
-                    ms.mv.origin.index() & !0b111
-                } else {
-                    ms.mv.origin.index() | 0b111
-                });
-                let r_dest = Square(if is_ks_castle {
-                    r_origin.index() as i32 + 2 * Dir::West.offset()
-                } else {
-                    r_origin.index() as i32 + 3 * Dir::East.offset()
-                } as u8);
-                b.r#move(r_dest, r_origin);
+                let (r_origin, r_dest) = match (is_ks_castle, color) {
+                    (true, Color::White) => (squares::H1, squares::F1),
+                    (true, Color::Black) => (squares::H8, squares::F8),
+                    (false, Color::White) => (squares::A1, squares::D1),
+                    (false, Color::Black) => (squares::A8, squares::D8),
+                };
+                modifier.r#move(r_dest, r_origin);
             }
-            b.toggle_color_to_move();
+            modifier.toggle_color_to_move();
             // Reset hash-tracked metadata
-            b.set_castle(Color::White, ms.castle[Color::White]);
-            b.set_castle(Color::Black, ms.castle[Color::Black]);
-            b.set_ep_target(ms.ep_target);
+            modifier.set_castle(Color::White, ms.castle[Color::White]);
+            modifier.set_castle(Color::Black, ms.castle[Color::Black]);
+            modifier.set_ep_target(ms.ep_target);
         });
 
         // Resetting other metadata
-        if piece.is_color(Color::Black) {
+        if color == Color::Black {
             self.fullmove -= 1;
         }
         self.halfmove = ms.halfmove;
     }
 
-    pub unsafe fn make_unchecked(&mut self, mv: Move) {
-        let piece = self[mv.origin];
+    /// Make a move without checking to see if it is legal. A significant performance improvement
+    /// over the regular `make` method.
+    ///
+    /// # Safety
+    ///
+    /// Only use in situations where the move being made is known to be legal and valid, typically
+    /// when it was generated by the built-in [move_gen].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the [Piece] at the moves origin is Empty.
+    pub unsafe fn make_unchecked(
+        &mut self,
+        mv @ Move {
+            origin,
+            dest,
+            promotion,
+        }: Move,
+    ) {
+        let piece @ Piece::Filled(kind, color) = self[origin] else {
+            panic!("Moving empty piece")
+        };
 
-        let ms = self.modify(|b| -> MoveState {
-            let is_ep = if let Some(e) = b.board().ep_target {
-                e == mv.dest && piece.is_kind(PieceKind::Pawn)
-            } else {
-                false
-            };
+        let ms = self.modify(|modifier| -> MoveState {
+            let is_ep = matches!(modifier.board().ep_target, Some(e) if e == dest)
+                && kind == PieceKind::Pawn;
 
-            let mut capture = b.r#move(mv.origin, mv.dest);
+            let mut capture = modifier.r#move(origin, dest);
             if is_ep {
-                let index = Square((mv.origin.index() & !0b111) | (mv.dest.index() & 0b111));
-                capture = b.clear(index)
+                let index = (origin.index() & !0b111) | (dest.index() & 0b111);
+                capture = modifier.clear(index.try_into().expect("EP target wrong"));
             }
             let move_state = MoveState {
                 mv,
                 capture,
-                castle: b.board().castle,
-                halfmove: b.board().halfmove,
-                ep_target: b.board().ep_target,
+                castle: modifier.board().castle,
+                halfmove: modifier.board().halfmove,
+                ep_target: modifier.board().ep_target,
             };
-            if mv.promotion != Piece::Empty {
-                b.put(mv.promotion, mv.dest);
+            if promotion != Piece::Empty {
+                modifier.put(promotion, dest);
             }
-            let is_castle =
-                piece.is_kind(PieceKind::King) && mv.dest.index().abs_diff(mv.origin.index()) == 2;
-            let is_ks_castle: bool = is_castle && mv.dest.index() < mv.origin.index();
-            if is_castle {
-                let r_origin = if is_ks_castle {
-                    mv.origin.index() & !0b111
-                } else {
-                    mv.origin.index() | 0b111
-                };
-                let r_dest = if is_ks_castle {
-                    r_origin as i32 + 2 * Dir::West.offset()
-                } else {
-                    r_origin as i32 + 3 * Dir::East.offset()
-                } as u8;
-                b.r#move(Square(r_origin), Square(r_dest));
-            }
-            b.toggle_color_to_move();
 
-            if piece.is_kind(PieceKind::Pawn) {
-                // Check if double push to set ep_target
-                if mv.dest.index().abs_diff(mv.origin.index()) == 16 {
-                    b.set_ep_target(Some(Square(mv.origin.index().max(mv.dest.index()) - 8)));
-                } else {
-                    b.set_ep_target(None);
-                }
+            let is_castle = kind == PieceKind::King && dest.index().abs_diff(origin.index()) == 2;
+            let is_ks_castle: bool = is_castle && dest.index() < origin.index();
+            if is_castle {
+                let (r_origin, r_dest) = match (is_ks_castle, color) {
+                    (true, Color::White) => (squares::H1, squares::F1),
+                    (true, Color::Black) => (squares::H8, squares::F8),
+                    (false, Color::White) => (squares::A1, squares::D1),
+                    (false, Color::Black) => (squares::A8, squares::D8),
+                };
+                modifier.r#move(r_origin, r_dest);
+            }
+            modifier.toggle_color_to_move();
+
+            let is_dp = kind == PieceKind::Pawn && dest.index().abs_diff(origin.index()) == 16;
+            if is_dp {
+                let index = origin.index().max(dest.index()) - 8;
+                modifier.set_ep_target(Some(
+                    Square::try_from(index).expect("Bad Ep target calculation"),
+                ));
             } else {
-                b.set_ep_target(None);
+                modifier.set_ep_target(None);
             }
 
             // Update castling
-            match piece {
-                Piece::Filled(PieceKind::King, color) => b.set_castle(color, Castle::None),
-                Piece::Filled(PieceKind::Rook, color) => {
-                    let is_white = color == Color::White;
-                    if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
-                        b.set_castle(color, b.board().castle[color].with_queen_side(false));
-                    } else if is_white && mv.origin.index() == 56
-                        || !is_white && mv.origin.index() == 0
-                    {
-                        b.set_castle(color, b.board().castle[color].with_king_side(false));
-                    }
+            match kind {
+                PieceKind::King => modifier.set_castle(color, Castle::None),
+                PieceKind::Rook => match (origin, color) {
+                    (squares::A1, Color::White) | (squares::A8, Color::Black) => modifier
+                        .set_castle(color, modifier.board().castle[color].with_queen_side(false)),
+                    (squares::H1, Color::White) | (squares::H8, Color::Black) => modifier
+                        .set_castle(color, modifier.board().castle[color].with_king_side(false)),
+                    _ => (),
+                },
+                _ => (),
+            }
+            match (dest, capture) {
+                (squares::A1, Piece::Filled(PieceKind::Rook, color @ Color::White))
+                | (squares::A8, Piece::Filled(PieceKind::Rook, color @ Color::Black)) => {
+                    modifier
+                        .set_castle(color, modifier.board().castle[color].with_queen_side(false));
+                }
+                (squares::H1, Piece::Filled(PieceKind::Rook, color @ Color::White))
+                | (squares::H8, Piece::Filled(PieceKind::Rook, color @ Color::Black)) => {
+                    modifier
+                        .set_castle(color, modifier.board().castle[color].with_king_side(false));
                 }
                 _ => (),
             }
-            //if let Piece::Filled(PieceKind::King, color) = piece {
-            //    b.set_castle(color, Castle::None);
-            //}
-            //if let Piece::Filled(PieceKind::Rook, color) = piece {
-            //    let is_white = color == Color::White;
-            //    if is_white && mv.origin.index() == 63 || !is_white && mv.origin.index() == 7 {
-            //        b.set_castle(color, b.board().castle[color].with_queen_side(false));
-            //    } else if is_white && mv.origin.index() == 56 || !is_white && mv.origin.index() == 0
-            //    {
-            //        b.set_castle(color, b.board().castle[color].with_king_side(false));
-            //    }
-            //}
-            if let Piece::Filled(PieceKind::Rook, color) = capture {
-                let is_white = capture.is_color(Color::White);
-                //let ci_offset = if is_white { 0 } else { 2 };
-                if is_white && mv.dest.index() == 63 || !is_white && mv.dest.index() == 7 {
-                    b.set_castle(color, b.board().castle[color].with_queen_side(false));
-                } else if is_white && mv.dest.index() == 56 || !is_white && mv.dest.index() == 0 {
-                    b.set_castle(color, b.board().castle[color].with_king_side(false));
-                }
-            }
+
             move_state
         });
 

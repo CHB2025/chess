@@ -5,7 +5,7 @@ mod ray;
 pub use ray::Ray;
 
 mod square;
-pub use square::Square;
+pub use square::{Square, squares};
 
 mod moves;
 pub use moves::Move;
