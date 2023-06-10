@@ -267,39 +267,31 @@ fn pawn_moves(board: &Board, mvs: &mut Vec<Move>, initial: Bitboard, color: Colo
 
 #[inline(always)]
 fn ep_is_pinned(board: &Board) -> bool {
-    match board.ep_target() {
-        None => true,
-        Some(sq) => {
-            let (color, dir) = if sq.rank() == 2 {
-                (Color::White, Dir::South)
-            } else {
-                (Color::Black, Dir::North)
-            };
-            let king = board.king(color);
-            let ep_pawn = sq.checked_add(dir).expect("Invalid En Passant Square");
-
-            match Ray::from(king, ep_pawn) {
-                None => false,
-                Some(r) => {
-                    let pieces: Vec<Piece> = r
-                        .into_iter()
-                        .filter_map(|sqr| {
-                            if board[sqr] == Piece::Empty {
-                                None
-                            } else {
-                                Some(board[sqr])
-                            }
-                        })
-                        .collect();
-                    (r.dir == Dir::East || r.dir == Dir::West)
-                        && pieces.len() >= 3
-                        && ((pieces[0] == Piece::pawn(color) && pieces[1] == Piece::pawn(!color))
-                            || (pieces[0] == Piece::pawn(!color)
-                                && pieces[1] == Piece::pawn(color)))
-                        && (pieces[2] == Piece::rook(!color) || pieces[2] == Piece::queen(!color))
-                }
-            }
-        }
+    let Some(ep_sq) = board.ep_target() else {
+        return true;
+    };
+    let (color, dir) = if ep_sq.rank() == 2 {
+        (Color::White, Dir::South)
+    } else {
+        (Color::Black, Dir::North)
+    };
+    let king = board.king(color);
+    let ep_pawn = ep_sq.checked_add(dir).expect("Invalid En Passant Square");
+    let Some(ray) = Ray::from(king, ep_pawn) else {
+        return false;
+    };
+    if ray.dir == Dir::East || ray.dir == Dir::West {
+        let pieces: Vec<_> = ray
+            .into_iter()
+            .filter_map(|sqr| match board[sqr] {
+                Piece::Empty => None,
+                p => Some(p),
+            })
+            .collect();
+        // Love/hate this line
+        pieces.len() >= 3 && matches!(pieces[..3], [Piece::Filled(PieceKind::Pawn, color1), Piece::Filled(PieceKind::Pawn, color2), Piece::Filled(PieceKind::Rook | PieceKind::Queen, color3)] if color1 != color2 && color3 != color)
+    } else {
+        false
     }
 }
 
