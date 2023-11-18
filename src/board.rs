@@ -161,7 +161,7 @@ impl Board {
 
     #[inline]
     fn modify<'a, T>(&'a mut self, arg: impl FnOnce(&mut Modifier<'a>) -> T) -> T {
-        let mut action = Modifier { board: self };
+        let mut action = Modifier::new(self);
         let response = arg(&mut action);
         action.complete();
         response

@@ -5,6 +5,10 @@ pub struct Modifier<'a> {
 }
 
 impl<'a> Modifier<'a> {
+    pub fn new(board: &'a mut Board) -> Self {
+        Modifier { board }
+    }
+
     /// Puts the given piece at the provided square. Returns the piece that was replaced
     #[inline(always)]
     pub fn put(&mut self, piece: Piece, square: Square) -> Piece {
@@ -24,22 +28,23 @@ impl<'a> Modifier<'a> {
         }
 
         // Update cashe
-        let free = ALL
-            ^ self.board.color_bitboards[Color::White]
-            ^ self.board.color_bitboards[Color::Black];
-        self.board.move_cache[square] = move_cache::moves(piece, square, free);
+        let free = self.board[Piece::Empty];
+        self.board.move_cache[square] |= move_cache::moves(piece, square, free);
+
         if piece == Piece::Empty || replaced == Piece::Empty {
-            // Don't need to check captures because move_cache includes first 
+            // Don't need to check captures because move_cache includes first
             // piece regardless of color
-            self.board
-                .move_cache
-                .iter_mut()
-                .enumerate()
-                .filter_map(|(i, b)| match b.contains(square) {
-                    true => Some((Square::try_from(i).expect("0-63 are valid squares"), b)),
-                    false => None,
-                })
-                .for_each(|(sq, b)| *b = move_cache::moves(self.board.pieces[sq], sq, free));
+            let check_bb = self.board[Piece::rook(Color::White)]
+                | self.board[Piece::bishop(Color::White)]
+                | self.board[Piece::queen(Color::White)]
+                | self.board[Piece::rook(Color::Black)]
+                | self.board[Piece::bishop(Color::Black)]
+                | self.board[Piece::queen(Color::Black)];
+            check_bb.into_iter().for_each(|s| {
+                if self.board.move_cache[s].contains(square) {
+                    self.board.move_cache[s] = move_cache::moves(self.board[s], s, free)
+                }
+            })
         }
 
         replaced
